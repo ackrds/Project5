@@ -132,6 +132,14 @@ class PretrainingDataset(Dataset):
         num_masks = [m[idx] for m in self.masks[0]]
         cat_masks = [m[idx] for m in self.masks[1]]
 
+        # Move tensors to device
+        masked_num = [f for f in masked_num]
+        masked_cat = [f for f in masked_cat]
+        target_num = [f for f in target_num]
+        target_cat = [f for f in target_cat]
+        num_masks = [m for m in num_masks]
+        cat_masks = [m for m in cat_masks]
+
         return (masked_num, masked_cat), (target_num, target_cat), (num_masks, cat_masks)
 
 class PretrainingModel(BaseModel):

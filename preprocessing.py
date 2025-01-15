@@ -5,7 +5,7 @@ from sklearn.preprocessing import StandardScaler
 
 def split_df(val_start='2024-01-01',train_start='2000-01-01'):
 
-    df = pd.read_csv('/Users/ack/Tennis/tennis_preprocessed.csv')
+    df = pd.read_csv('tennis_preprocessed.csv')
     df['tourney_date'] = pd.to_datetime(df['tourney_date'])
     # df = df[df['tourney_date'] > '2005-01-01']
     df = df.sort_values('tourney_date')

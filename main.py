@@ -1,8 +1,7 @@
-
 import torch
 from torch.utils.data import Dataset, DataLoader
 from mambular.base_models import Mambular, FTTransformer, SAINT, MambAttention
-from sklearn.preprocessing import StandardScalera
+from sklearn.preprocessing import StandardScaler
 from model import Model, MainDataset, train_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
 from loss_utils import HybridLoss
@@ -11,12 +10,10 @@ from preprocessing import hash_features, split_df
 
 def main():
 
-    # Configuration
-    # config = DefaultMambularConfig()
     batch_size = 1028
     pretrain_epochs = 15
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #
+    # 3131
     # FTTransformer
     # MambaAttention
     # SAINT
@@ -26,7 +23,6 @@ def main():
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, y_train, y_val, num_feature_info, cat_feature_info = split_df()
 
-    print(y_train)
 
     scaler = StandardScaler()
     x_train_num_scaled = []
