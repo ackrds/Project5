@@ -15,14 +15,10 @@ def main(args):
     pretrain_epochs = args.pretrain_epochs
     learning_rate = args.learning_rate
     model_to_use = args.model_type
+    pretrain = args.pretrain
+    print(learning_rate)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # 3131
-    # FTTransformer
-    # MambaAttention
-    # SAINT
-    # Mambular
-    # model_to_use = FTTransformer
-    # Generate synthetic data for pretraining
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, y_train, y_val, num_feature_info, cat_feature_info = split_df()
 
@@ -34,7 +30,7 @@ def main(args):
         x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
         x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
     
-    if args.pretrain:
+    if pretrain==1:
         pretrain_dataset = PretrainingDataset(
             x_train_num_scaled, x_train_cat, cat_feature_info, mask_ratio=0.25
         )
@@ -88,8 +84,8 @@ def main(args):
     #
     # # print(model.state_dict.keys())
     #
-    train_dataset = MainDataset(x_train_num, x_train_cat, y_train)
-    val_dataset  = MainDataset(x_val_num, x_val_cat, y_val)
+    train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
+    val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
     #
     # # Create training dataloader
     train_loader = DataLoader(
@@ -131,7 +127,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=1024, help="batch size")
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
     parser.add_argument("--model_type", type=lambda x: eval(x), default='FTTransformer', help="type of model to use")
-    parser.add_argument("--pretrain", type=bool, default=True, help="pretrain the model")
+    parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
     args = parser.parse_args()
     main(args)
 
