@@ -1,25 +1,27 @@
 import argparse
 import torch
 from torch.utils.data import Dataset, DataLoader
-from mambular.base_models import Mambular, FTTransformer, SAINT, MambAttention
 from sklearn.preprocessing import StandardScaler
 from model import Model, MainDataset, train_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
 from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
+from mambular.base_models import Mambular, FTTransformer, SAINT, MambAttention
 
 
 def main(args):
 
     batch_size = args.batch_size
     pretrain_epochs = args.pretrain_epochs
+    learning_rate = args.learning_rate
+    model_to_use = args.model_type
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # 3131
     # FTTransformer
     # MambaAttention
     # SAINT
     # Mambular
-    model_to_use = FTTransformer
+    # model_to_use = FTTransformer
     # Generate synthetic data for pretraining
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, y_train, y_val, num_feature_info, cat_feature_info = split_df()
@@ -32,46 +34,50 @@ def main(args):
         x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
         x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
     
-    pretrain_dataset = PretrainingDataset(
-        x_train_num_scaled, x_train_cat, cat_feature_info, mask_ratio=0.25
-    )
+    if args.pretrain:
+        pretrain_dataset = PretrainingDataset(
+            x_train_num_scaled, x_train_cat, cat_feature_info, mask_ratio=0.25
+        )
 
-    preval_dataset = PretrainingDataset(
-        x_val_num_scaled, x_val_cat, cat_feature_info, mask_ratio=0.25
-    )
-    pretrain_loader = DataLoader(
-        pretrain_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=2,
-        pin_memory=True
-    )
-
-    preval_loader = DataLoader(
-            preval_dataset,
+        preval_dataset = PretrainingDataset(
+            x_val_num_scaled, x_val_cat, cat_feature_info, mask_ratio=0.25
+        )
+        pretrain_loader = DataLoader(
+            pretrain_dataset,
             batch_size=batch_size,
             shuffle=True,
             num_workers=2,
             pin_memory=True
         )
-    
-    # Initialize and pretrain model
-    pretrain_model_inst = PretrainingModel(
-        cat_feature_info,
-        num_feature_info,
-        model_to_use
-    ).to(device)
 
-    # Pretrain the model
-    pretrained_model = pretrain_model(
-        pretrain_model_inst,
-        pretrain_loader,
-        pretrain_loader,
-        pretrain_epochs,
-        device
-    )
+        preval_loader = DataLoader(
+                preval_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                num_workers=2,
+                pin_memory=True
+            )
+        
+        # Initialize and pretrain model
+        pretrain_model_inst = PretrainingModel(
+            cat_feature_info,
+            num_feature_info,
+            model_to_use
+        ).to(device)
 
-    pretrained_state_dict = pretrained_model.encoder.state_dict()
+        # Pretrain the model
+        pretrained_model = pretrain_model(
+            pretrain_model_inst,
+            pretrain_loader,
+            pretrain_loader,
+            pretrain_epochs,
+            device
+        )
+
+        pretrained_state_dict = pretrained_model.encoder.state_dict()
+
+    else:
+        pretrained_state_dict = None
 
     model = Model(
         cat_feature_info=cat_feature_info,
@@ -102,10 +108,10 @@ def main(args):
         pin_memory=True
     )
 
-    num_epochs = 10
+    num_epochs = args.num_epochs
     # # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     trained_model, history = train_model(
         model=model,
@@ -121,10 +127,17 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("AnomalyCLIP", add_help=True)
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
-    # parser.add_argument("--learning_rate", type=float, default=0.001, help="learning rate")
+    parser.add_argument("--learning_rate", type=float, default=0.001, help="learning rate")
     parser.add_argument("--batch_size", type=int, default=1024, help="batch size")
+    parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
+    parser.add_argument("--model_type", type=lambda x: eval(x), default='FTTransformer', help="type of model to use")
+    parser.add_argument("--pretrain", type=bool, default=True, help="pretrain the model")
     args = parser.parse_args()
     main(args)
 
 
-
+# code for git push
+# git add .
+# git commit -m "pretrain"
+# git branch -m main
+# git push -u origin main
