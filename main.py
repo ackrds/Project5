@@ -105,8 +105,8 @@ def main(args):
     )
 
     num_epochs = args.num_epochs
-    # # criterion = torch.nn.CrossEntropyLoss()
-    criterion =  HybridLoss()
+    criterion = torch.nn.CrossEntropyLoss()
+    # criterion =  HybridLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     trained_model, history = train_model(
@@ -123,7 +123,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("AnomalyCLIP", add_help=True)
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
-    parser.add_argument("--learning_rate", type=float, default=0.001, help="learning rate")
+    parser.add_argument("- -learning_rate", type=float, default=0.001, help="learning rate")
     parser.add_argument("--batch_size", type=int, default=1024, help="batch size")
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
     parser.add_argument("--model_type", type=lambda x: eval(x), default='FTTransformer', help="type of model to use")

@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../Desktop/mamba-tabular-master/mambular"
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}
