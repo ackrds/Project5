@@ -1,3 +1,4 @@
+import argparse
 import torch
 from torch.utils.data import Dataset, DataLoader
 from mambular.base_models import Mambular, FTTransformer, SAINT, MambAttention
@@ -8,10 +9,10 @@ from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
 
 
-def main():
+def main(args):
 
-    batch_size = 1028
-    pretrain_epochs = 15
+    batch_size = args.batch_size
+    pretrain_epochs = args.pretrain_epochs
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # 3131
     # FTTransformer
@@ -32,7 +33,11 @@ def main():
         x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
     
     pretrain_dataset = PretrainingDataset(
-        x_train_num, x_train_cat, cat_feature_info, mask_ratio=0.25
+        x_train_num_scaled, x_train_cat, cat_feature_info, mask_ratio=0.25
+    )
+
+    preval_dataset = PretrainingDataset(
+        x_val_num_scaled, x_val_cat, cat_feature_info, mask_ratio=0.25
     )
     pretrain_loader = DataLoader(
         pretrain_dataset,
@@ -42,6 +47,14 @@ def main():
         pin_memory=True
     )
 
+    preval_loader = DataLoader(
+            preval_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=2,
+            pin_memory=True
+        )
+    
     # Initialize and pretrain model
     pretrain_model_inst = PretrainingModel(
         cat_feature_info,
@@ -52,6 +65,7 @@ def main():
     # Pretrain the model
     pretrained_model = pretrain_model(
         pretrain_model_inst,
+        pretrain_loader,
         pretrain_loader,
         pretrain_epochs,
         device
@@ -110,7 +124,12 @@ def main():
     #
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser("AnomalyCLIP", add_help=True)
+    parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
+    # parser.add_argument("--learning_rate", type=float, default=0.001, help="learning rate")
+    parser.add_argument("--batch_size", type=int, default=1024, help="batch size")
+    args = parser.parse_args()
+    main(args)
 
 
 

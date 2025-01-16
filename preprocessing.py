@@ -42,14 +42,11 @@ def split_df(val_start='2024-01-01',train_start='2000-01-01'):
                     'Surface Hard',
                     'isMasters',
                     'isQualifiers',
-                    'isGrandSlam',
-                    'round',
-                    # 'player_name',
-                    # 'opponent_name'
-                    ]
+                    'isGrandSlam']
 
     cat_feature_info = {key:{'dimension':1, 'categories':len(list(set(df[key])))} for key in cat_features}
     num_feature_info = {key:{'dimension':1, 'categories':None} for key in cat_features}
+    print(cat_feature_info)
     features = num_features + cat_features
 
     # df['player_name'] = hash_features(df['player_name'].values)
@@ -76,7 +73,7 @@ def split_df(val_start='2024-01-01',train_start='2000-01-01'):
     x_train_cat = [torch.tensor(x_train_cat[f].values).long() for f in cat_features]
 
     x_val_num = [torch.tensor(x_val_num[f].values, dtype=torch.float32).unsqueeze(-1) for f in num_features]
-    x_val_cat = [torch.tensor(x_val_cat[f].values) for f in cat_features]
+    x_val_cat = [torch.tensor(x_val_cat[f].values).long() for f in cat_features]
 
     return x_train_num, x_train_cat, x_val_num, x_val_cat, y_train, y_val, num_feature_info, cat_feature_info
 

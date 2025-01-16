@@ -25,15 +25,7 @@ class Model(BaseModel):
         self.state_dict = pretrained_state_dict
         if self.state_dict is not None:
             self.model.load_state_dict(self.state_dict)  # Fixed loading state dict
-        # self.model.tabular_head = None
-        # print(self.model.state_dict().keys())
-        # self.model.tabular_head = nn.Identity()
-
-        # print(self.model.state_dict().keys())
-        # self.model = nn.Sequential(*list(self.model.encoder.children())[:-1])
-
-        # self.model = nn.Sequential(*list(self.model.children())[:-1])
-        # self.output_dim = len(list(self.model.state_dict().values())[-1])
+            # Update output_dim based on the model's actual output dimension
 
         self.output_head =     nn.Sequential(  nn.SELU(),
                                                nn.Linear(32, 16),

@@ -200,7 +200,7 @@ class PretrainingModel(BaseModel):
         return num_preds, cat_logits
 
 
-def pretrain_model(model, train_loader, num_epochs, device, lr=0.001):
+def pretrain_model(model, train_loader, val_loader, num_epochs, device, lr=0.001):
     """Pretrain the model using masked feature prediction."""
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
@@ -261,5 +261,52 @@ def pretrain_model(model, train_loader, num_epochs, device, lr=0.001):
 
         avg_loss = total_loss / num_batches
         print(f"Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}")
+
+        # Validation step
+        model.eval()
+        val_loss = 0
+        val_batches = 0
+        
+        if epoch % 5 == 0:
+            with torch.no_grad():
+                for batch_idx, (masked_features, targets, masks) in enumerate(val_loader):
+                    masked_num, masked_cat = masked_features
+                    num_targets, cat_targets = targets
+                    num_masks, cat_masks = masks
+
+                    # Move to device
+                    masked_num = [f.to(device) for f in masked_num]
+                    masked_cat = [f.to(device) for f in masked_cat]
+                    num_targets = [t.to(device) for t in num_targets]
+                    cat_targets = [t.to(device) for t in cat_targets]
+                    num_masks = [m.to(device) for m in num_masks]
+                    cat_masks = [m.to(device) for m in cat_masks]
+
+                    # Forward pass
+                    num_preds, cat_logits = model(masked_num, masked_cat)
+
+                    # Calculate validation losses
+                    val_loss_batch = 0
+
+                    # Numerical feature losses
+                    for pred, target, mask in zip(num_preds, num_targets, num_masks):
+                        if mask.any():
+                            num_loss = num_criterion(pred, target)
+                            val_loss_batch += (num_loss * mask.float()).mean()
+
+                    # Categorical feature losses
+                    for logits, target, mask in zip(cat_logits, cat_targets, cat_masks):
+                        if mask.any():
+                            cat_loss = cat_criterion(
+                                logits.view(-1, logits.size(-1)),
+                                target.long().view(-1)
+                            )
+                            val_loss_batch += (cat_loss * mask.view(-1).float()).mean()
+
+                    val_loss += val_loss_batch.item()
+                    val_batches += 1
+
+            avg_val_loss = val_loss / val_batches
+            print(f"Epoch [{epoch + 1}/{num_epochs}], Validation Loss: {avg_val_loss:.4f}")
 
     return model
