@@ -116,13 +116,8 @@ def main(args):
         num_epochs=num_epochs,
         device=device
     )
-    #
-    # # Print final training results
-    # print("\nTraining completed!")
-    # print(f"Final training accuracy: {history['accuracy'][-1]:.2f}%")
-    # print(f"Final training loss: {history['loss'][-1]:.4f}")
-    #
-
+    
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("AnomalyCLIP", add_help=True)
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
