@@ -6,6 +6,59 @@ from torch.utils.data import Dataset
 from mambular.base_models import BaseModel
 from mambular.configs import DefaultMambularConfig
 
+class PretrainingModel(BaseModel):
+    def __init__(
+            self,
+            cat_feature_info,
+            num_feature_info,
+            model,
+            config=None,
+            output_dim=32,
+            **kwargs,
+    ):
+        super().__init__()
+        self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
+
+        # Base encoder with 64-dimensional output
+        self.output_dim = output_dim
+
+        if config is None:
+            config = DefaultMambularConfig()
+            # config = {*config}
+            # config.d_model = 32
+        self.encoder = model(cat_feature_info, num_feature_info, output_dim, config=config)
+        self.encoder.hparams.use_embeddings = True
+
+
+
+        # Define prediction heads
+        self.num_heads = nn.ModuleList([
+            nn.Sequential(
+                nn.SELU(),
+                nn.Linear(output_dim, 32),
+                nn.SELU(),
+                nn.Linear(32, 1)
+            ) for feat in num_feature_info
+        ])
+
+        self.cat_heads = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(output_dim, 32),
+                nn.ReLU(),
+                nn.Linear(32, info["categories"])
+            ) for info in cat_feature_info.values()
+        ])
+
+    def forward(self, num_features, cat_features):
+
+        encoded = self.encoder(num_features, cat_features)
+
+        # Predict features
+        num_preds = [head(encoded) for head in self.num_heads]
+        cat_logits = [head(encoded) for head in self.cat_heads]
+
+        return num_preds, cat_logits
+
 
 class PretrainingDataset(Dataset):
     def __init__(self, num_features: List[torch.Tensor],
@@ -142,62 +195,6 @@ class PretrainingDataset(Dataset):
 
         return (masked_num, masked_cat), (target_num, target_cat), (num_masks, cat_masks)
 
-class PretrainingModel(BaseModel):
-    def __init__(
-            self,
-            cat_feature_info,
-            num_feature_info,
-            model,
-            config=None,
-            **kwargs,
-    ):
-        super().__init__()
-        self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
-
-        # Base encoder with 64-dimensional output
-        self.output_dim = 32
-
-        if config is not None:
-            self.encoder = model(cat_feature_info, num_feature_info, 32, config=config)
-        else:
-            config = DefaultMambularConfig()
-            # config = {*config}
-            # config.d_model = 32
-            self.encoder = model(cat_feature_info, num_feature_info, 32, config=config)
-
-
-        self.encoder = model(cat_feature_info, num_feature_info, 32)
-        self.encoder.hparams.use_embeddings = True
-
-
-
-        # Define prediction heads
-        self.num_heads = nn.ModuleList([
-            nn.Sequential(
-                nn.SELU(),
-                nn.Linear(32, 32),
-                nn.SELU(),
-                nn.Linear(32, 1)
-            ) for feat in num_feature_info
-        ])
-
-        self.cat_heads = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(32, 32),
-                nn.ReLU(),
-                nn.Linear(32, info["categories"])
-            ) for info in cat_feature_info.values()
-        ])
-
-    def forward(self, num_features, cat_features):
-
-        encoded = self.encoder(num_features, cat_features)
-
-        # Predict features
-        num_preds = [head(encoded) for head in self.num_heads]
-        cat_logits = [head(encoded) for head in self.cat_heads]
-
-        return num_preds, cat_logits
 
 
 def pretrain_model(model, train_loader, val_loader, num_epochs, device, lr=0.001):

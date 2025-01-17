@@ -16,13 +16,14 @@ def main(args):
     learning_rate = args.learning_rate
     model_to_use = args.model_type
     pretrain = args.pretrain
-    print(learning_rate)
+    output_dim = args.output_dim
+    num_epochs = args.num_epochs
+
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, y_train, y_val, num_feature_info, cat_feature_info = split_df()
 
-    print(num_feature_info)
     scaler = StandardScaler()
     x_train_num_scaled = []
     x_val_num_scaled = []
@@ -58,7 +59,7 @@ def main(args):
         pretrain_model_inst = PretrainingModel(
             cat_feature_info,
             num_feature_info,
-            model_to_use
+            model_to_use,
         ).to(device)
 
         # Pretrain the model
@@ -79,6 +80,7 @@ def main(args):
         cat_feature_info=cat_feature_info,
         num_feature_info=num_feature_info,
         model=model_to_use,
+        output_dim=output_dim,
         pretrained_state_dict=pretrained_state_dict
     ).to(device)
     #
@@ -104,7 +106,6 @@ def main(args):
         pin_memory=True
     )
 
-    num_epochs = args.num_epochs
     criterion = torch.nn.CrossEntropyLoss()
     # criterion =  HybridLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -128,6 +129,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
     parser.add_argument("--model_type", type=lambda x: eval(x), default='FTTransformer', help="type of model to use")
     parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
+    parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
     args = parser.parse_args()
     main(args)
 

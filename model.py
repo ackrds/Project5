@@ -2,6 +2,7 @@ import torch
 from mambular.base_models import BaseModel
 from torch.utils.data import Dataset, DataLoader
 from torch import nn
+from mambular.configs import DefaultFTTransformerConfig
 
 class Model(BaseModel):
     def __init__(
@@ -16,26 +17,23 @@ class Model(BaseModel):
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
-        if config is not None:
-            self.model = model(cat_feature_info, num_feature_info, output_dim, config=config)
-        else:
-            self.model = model(cat_feature_info, num_feature_info, output_dim)
-
+        if config is None:
+            config = DefaultFTTransformerConfig()
+        self.model = model(cat_feature_info, num_feature_info, output_dim)
         self.output_dim = output_dim
         self.state_dict = pretrained_state_dict
         if self.state_dict is not None:
             self.model.load_state_dict(self.state_dict)  # Fixed loading state dict
             # Update output_dim based on the model's actual output dimension
-
-        self.output_head =     nn.Sequential(  
-                                            #    nn.SELU(),
-                                            #    nn.Linear(32, 16),
-                                            #    nn.SELU(),
-                                            #    nn.Linear(16, 2),
-                                               nn.Sigmoid())
-
-
-        # self.output_activation = nn.Sigmoid()
+        # self.output_head = nn.Sequential(nn.Identity())
+        if self.output_dim > 2:
+            self.output_head =     nn.Sequential(nn.SELU(),
+                                                 nn.Linear(output_dim, 16),
+                                                 nn.SELU(),
+                                                 nn.Linear(16, 2), 
+                                                 nn.Sigmoid())
+        else:
+            self.output_head = nn.Sigmoid()
 
     def forward(self, num_features, cat_features):
         x = self.model(num_features, cat_features)
