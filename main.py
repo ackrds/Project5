@@ -22,7 +22,7 @@ def main(args):
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, y_train, y_val, num_feature_info, cat_feature_info = split_df()
 
-
+    print(num_feature_info)
     scaler = StandardScaler()
     x_train_num_scaled = []
     x_val_num_scaled = []

@@ -18,10 +18,10 @@ def split_df(val_start='2024-01-01',train_start='2000-01-01'):
                     'Player Age Difference',
                     'Player Height Difference',
                     'Average Glicko Last 6 Months Difference',
-                    'Player bpSaved% Avg Difference',
-                    'Player ServicePointsWon% Avg Difference',
-                    'Player ReturnPointsWon% Avg Difference',
-                    'Player Completeness Avg Difference',
+                    # 'Player bpSaved% Avg Difference',
+                    # 'Player ServicePointsWon% Avg Difference',
+                    # 'Player ReturnPointsWon% Avg Difference',
+                    # 'Player Completeness Avg Difference',
                     'Player Serve Advantage Avg Difference',
                     'Same Surface Matches Won Difference',
                     'Surface Win Percentage Difference',
@@ -34,8 +34,9 @@ def split_df(val_start='2024-01-01',train_start='2000-01-01'):
                     'Total Matches Difference',
                     'H2H Games Won',
                     'H2H Games Played',
-                    'Common Opponent Advantage',
-                    'Num Common Opponents']
+                    # 'Common Opponent Advantage',
+                    # 'Num Common Opponents'
+                    ]
 
     cat_features = ['Surface Clay',
                     'Surface Grass',
@@ -45,8 +46,8 @@ def split_df(val_start='2024-01-01',train_start='2000-01-01'):
                     'isGrandSlam']
 
     cat_feature_info = {key:{'dimension':1, 'categories':len(list(set(df[key])))} for key in cat_features}
-    num_feature_info = {key:{'dimension':1, 'categories':None} for key in cat_features}
-    print(cat_feature_info)
+    num_feature_info = {key:{'dimension':1, 'categories':None} for key in num_features}
+
     features = num_features + cat_features
 
     # df['player_name'] = hash_features(df['player_name'].values)
@@ -58,7 +59,6 @@ def split_df(val_start='2024-01-01',train_start='2000-01-01'):
     # test = test.dropna(subset=['Player 1 Odd'])
     # test = test[(test['isMasters']==1) | (test['isGrandSlam']==1)]
 
-    scaler = StandardScaler()
     # x_train= train[features]
     x_train_num = train[num_features]
     x_train_cat = train[cat_features]

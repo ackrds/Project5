@@ -27,10 +27,11 @@ class Model(BaseModel):
             self.model.load_state_dict(self.state_dict)  # Fixed loading state dict
             # Update output_dim based on the model's actual output dimension
 
-        self.output_head =     nn.Sequential(  nn.SELU(),
-                                               nn.Linear(32, 16),
-                                               nn.SELU(),
-                                               nn.Linear(16, 2),
+        self.output_head =     nn.Sequential(  
+                                            #    nn.SELU(),
+                                            #    nn.Linear(32, 16),
+                                            #    nn.SELU(),
+                                            #    nn.Linear(16, 2),
                                                nn.Sigmoid())
 
 
