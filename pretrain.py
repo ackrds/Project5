@@ -12,8 +12,9 @@ class PretrainingModel(BaseModel):
             cat_feature_info,
             num_feature_info,
             model,
+            output_dim,
             config=None,
-            output_dim=32,
+
             **kwargs,
     ):
         super().__init__()

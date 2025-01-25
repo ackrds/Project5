@@ -19,19 +19,35 @@ def main(args):
     output_dim = args.output_dim
     num_epochs = args.num_epochs
 
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info = split_df(year=2024, month=1)
+
+    # x_train_cat_scaled = []
+    # x_val_cat_scaled = []
+    # x_test_cat_scaled = []
+
+    # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
+    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
+    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
+    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:10], dtype=torch.int)) 
+    
+    # x_train_cat = x_train_cat_scaled
+    # x_val_cat = x_val_cat_scaled
+    # x_test_cat = x_test_cat_scaled
+
+    y_train = y_train[:10]
+    y_val = y_val[:10]
+    y_test = y_test[:10]
 
     scaler = StandardScaler()
     x_train_num_scaled = []
     x_val_num_scaled = []
     x_test_num_scaled = []
     for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
-        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
-        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
+        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
+        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:10]), dtype=torch.float32))
 
     
     if pretrain==1:
@@ -63,6 +79,7 @@ def main(args):
             cat_feature_info,
             num_feature_info,
             model_to_use,
+            output_dim,
         ).to(device)
 
         # Pretrain the model
@@ -150,7 +167,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
     parser.add_argument("--model_type", type=lambda x: eval(x), default='FTTransformer', help="type of model to use")
     parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
-    parser.add_argument("--output_dim", type=int, default=2, help="output dimension")
+    parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
     args = parser.parse_args()
     main(args)
 
