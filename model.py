@@ -120,9 +120,12 @@ def evaluate_model(model, data_loader, criterion, device):
             total_samples += labels.size(0)
             total_correct += predicted.eq(labels).sum().item()
 
-    avg_loss = total_loss / total_samples
-    accuracy = total_correct / total_samples
-    return avg_loss, accuracy
+    epoch_loss = total_loss / len(data_loader)
+    epoch_acc = 100. * total_correct / total_samples
+
+    # Store metrics
+
+    return epoch_loss, epoch_acc
 
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device):
@@ -187,10 +190,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             correct += predicted.eq(labels).sum().item()
 
             # Print progress
-            if batch_idx % 10 == 0:
-                print(f'Epoch: {epoch}, Batch: {batch_idx}, '
-                      f'Loss: {loss.item():.4f}, '
-                      f'Acc: {100. * correct / total:.2f}%')
+            # if batch_idx % 10 == 0:
+            #     print(f'Epoch: {epoch}, Batch: {batch_idx}, '
+            #           f'Loss: {loss.item():.4f}, '
+            #           f'Acc: {100. * correct / total:.2f}%')
 
         # Calculate epoch metrics
         epoch_loss = running_loss / len(train_loader)
@@ -205,11 +208,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
               f'Accuracy: {epoch_acc:.2f}%')
 
         if epoch % 10 == 0:
-            avg_loss, accuracy = evaluate_model(model, val_loader, criterion, device)
-            val_history['val_loss'].append(avg_loss)
-            val_history['val_accuracy'].append(accuracy)
-            print( f'Val Loss: {avg_loss:.4f}, '
-                  f'Val Accuracy: {accuracy:.2f}%')
+            val_loss, val_acc = evaluate_model(model, val_loader, criterion, device)
+            print(f'Val Loss: {val_loss:.4f}, '
+                  f'Val Accuracy: {val_acc:.2f}%')
+
 
     return model, history
 
