@@ -10,7 +10,7 @@ class Model(BaseModel):
             cat_feature_info,
             num_feature_info,
             model,
-            output_dim=32,
+            output_dim=2,
             pretrained_state_dict=None,
             config = None,
             **kwargs,
@@ -19,13 +19,17 @@ class Model(BaseModel):
         self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
         if config is None:
             config = DefaultFTTransformerConfig()
+        # config.d_model = 256
+        # config.n_heads = 8
+        # config.n_layers = 12
+
         self.model = model(cat_feature_info, num_feature_info, output_dim)
         self.output_dim = output_dim
+
         self.state_dict = pretrained_state_dict
         if self.state_dict is not None:
             self.model.load_state_dict(self.state_dict)  # Fixed loading state dict
-            # Update output_dim based on the model's actual output dimension
-        # self.output_head = nn.Sequential(nn.Identity())
+
         if self.output_dim > 2:
             self.output_head =     nn.Sequential(nn.SELU(),
                                                  nn.Linear(output_dim, 16),

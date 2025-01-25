@@ -26,10 +26,9 @@ class PretrainingModel(BaseModel):
             config = DefaultMambularConfig()
             # config = {*config}
             # config.d_model = 32
+
         self.encoder = model(cat_feature_info, num_feature_info, output_dim, config=config)
         self.encoder.hparams.use_embeddings = True
-
-
 
         # Define prediction heads
         self.num_heads = nn.ModuleList([
