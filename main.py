@@ -36,9 +36,9 @@ def main(args):
     # x_val_cat = x_val_cat_scaled
     # x_test_cat = x_test_cat_scaled
 
-    y_train = y_train[:10]
-    y_val = y_val[:10]
-    y_test = y_test[:10]
+    # y_train = y_train[:10]
+    # y_val = y_val[:10]
+    # y_test = y_test[:10]
 
     scaler = StandardScaler()
     x_train_num_scaled = []
