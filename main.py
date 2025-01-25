@@ -45,9 +45,9 @@ def main(args):
     x_val_num_scaled = []
     x_test_num_scaled = []
     for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
-        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
-        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:10]), dtype=torch.float32))
+        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
+        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
+        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
 
     
     if pretrain==1:
@@ -157,7 +157,6 @@ def main(args):
         criterion=criterion,
         device=device
     )
-
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("main", add_help=True)
