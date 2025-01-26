@@ -19,7 +19,7 @@ class Model(BaseModel):
         self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
         if config is None:
             config = DefaultFTTransformerConfig()
-        self.model = model(cat_feature_info, num_feature_info, output_dim)
+        self.model = model(cat_feature_info, num_feature_info, output_dim, config)
         self.output_dim = output_dim
 
         self.state_dict = pretrained_state_dict
