@@ -77,6 +77,7 @@ def main(args):
     
     config = eval(f"Default{model_to_use}Config()")
     model_to_use = eval(f"{model_to_use}")
+
     if len(args.config_values.keys()) > 0:
         for key, value in args.config_values.items():
             setattr(config, key, value)
@@ -222,14 +223,6 @@ if __name__ == "__main__":
     parser.add_argument("--ce_weight", type=float, default=0.1, help="ce weight")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
 
-    # parser.add_argument("--d_model", type=int, default=128, help="d_model")
-    # parser.add_argument("--transformer_dim_feedforward", type=int, default=256, help="transformer dim_feedforward")
-    # parser.add_argument("--n_layers", type=int, default=4, help="n_layers")
-    # parser.add_argument("--n_heads", type=int, default=8, help="n_heads")
-    # parser.add_argument("--attn_dropout", type=float, default=0.1, help="attn_dropout")
-    # parser.add_argument("--use_cls", type=bool, default=False, help="use cls")
-    # parser.add_argument("--pooling_method", type=str, default='avg', help="pooling method")
-    # parser.add_argument("--embedding_type", type=str, default='linear', help="embedding type")
 
     parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
 
