@@ -143,7 +143,8 @@ def main(args):
         num_feature_info=num_feature_info,
         model=model_to_use,
         output_dim=output_dim,
-        pretrained_state_dict=pretrained_state_dict
+        pretrained_state_dict=pretrained_state_dict,
+        config=config
     ).to(device)
     #
     # # print(model.state_dict.keys())
@@ -168,7 +169,6 @@ def main(args):
         num_workers=4,
         pin_memory=True
     )
-
 
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(sce_weight=sce_weight)
