@@ -97,4 +97,4 @@ class HybridLoss(nn.Module):
         ce_loss = self.cross_entropy(logits, labels)
         sce_loss = self.sce_criterion(logits, labels)
 
-        return ce_loss  + sce_loss
+        return self.ce_weight * ce_loss  + self.sce_weight*sce_loss

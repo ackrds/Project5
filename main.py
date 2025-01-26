@@ -224,7 +224,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_type", type=lambda x: eval(x), default='FTTransformer', help="type of model to use")
     parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
     parser.add_argument("--sce_weight", type=float, default=0.1, help="sce weight")
-    parser.add_argument("--ce_weight", type=int, default=0.1, help="ce weight")
+    parser.add_argument("--ce_weight", type=float, default=0.1, help="ce weight")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
     parser.add_argument("--d_model", type=int, default=128, help="d_model")
     parser.add_argument("--transformer_dim_feedforward", type=int, default=256, help="transformer dim_feedforward")
