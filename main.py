@@ -43,40 +43,40 @@ def main(args):
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info = split_df(year=year, month=month)
 
-    x_train_cat_scaled = []
-    x_val_cat_scaled = []
-    x_test_cat_scaled = []
+    # x_train_cat_scaled = []
+    # x_val_cat_scaled = []
+    # x_test_cat_scaled = []
 
-    for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
-        x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
-        x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
-        x_test_cat_scaled.append(torch.tensor(test_cat_feat[:10], dtype=torch.int)) 
+    # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
+    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
+    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
+    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:10], dtype=torch.int)) 
     
-    x_train_cat = x_train_cat_scaled
-    x_val_cat = x_val_cat_scaled
-    x_test_cat = x_test_cat_scaled
+    # x_train_cat = x_train_cat_scaled
+    # x_val_cat = x_val_cat_scaled
+    # x_test_cat = x_test_cat_scaled
 
-    y_train = y_train[:10]
-    y_val = y_val[:10]
-    y_test = y_test[:10]
-
-    scaler = StandardScaler()
-    x_train_num_scaled = []
-    x_val_num_scaled = []
-    x_test_num_scaled = []
-    for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
-        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
-        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:10]), dtype=torch.float32))
+    # y_train = y_train[:10]
+    # y_val = y_val[:10]
+    # y_test = y_test[:10]
 
     # scaler = StandardScaler()
     # x_train_num_scaled = []
     # x_val_num_scaled = []
     # x_test_num_scaled = []
     # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
-    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
-    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
+    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
+    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:10]), dtype=torch.float32))
+
+    scaler = StandardScaler()
+    x_train_num_scaled = []
+    x_val_num_scaled = []
+    x_test_num_scaled = []
+    for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
+        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
+        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
+        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
 
     
     if pretrain==1:
