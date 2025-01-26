@@ -116,16 +116,17 @@ def evaluate_model(model, data_loader, criterion, device):
             # total_loss += loss.item() * labels.size(0)
 
             total_loss += loss.item()
+            probabilities = outputs[:, 1]
             _, predicted = outputs.max(1)
+            
             total_samples += labels.size(0)
             total_correct += predicted.eq(labels).sum().item()
-            preds.append(predicted)
+            preds.append(probabilities)
 
     epoch_loss = total_loss / len(data_loader)
     epoch_acc = 100. * total_correct / total_samples
     preds = torch.cat(preds)
     # Store metrics
-
     return epoch_loss, epoch_acc, preds
 
 

@@ -35,7 +35,6 @@ def main(args):
     use_cls = args.use_cls
     embedding_type = args.embedding_type
 
-
     # data parameters
     year = args.year
     month = args.month
@@ -52,7 +51,7 @@ def main(args):
     # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
     #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
     #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
-    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:10], dtype=torch.int)) 
+    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
     
     # x_train_cat = x_train_cat_scaled
     # x_val_cat = x_val_cat_scaled
@@ -60,7 +59,7 @@ def main(args):
 
     # y_train = y_train[:10]
     # y_val = y_val[:10]
-    # y_test = y_test[:10]
+    # y_test = y_test[:1000]
 
     # scaler = StandardScaler()
     # x_train_num_scaled = []
@@ -69,7 +68,7 @@ def main(args):
     # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
     #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
     #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
-    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:10]), dtype=torch.float32))
+    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
 
     scaler = StandardScaler()
     x_train_num_scaled = []
@@ -81,6 +80,17 @@ def main(args):
         x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
 
     
+    config = DefaultFTTransformerConfig()
+    config.d_model = d_model
+    config.n_layers = n_layers
+    config.n_heads = n_heads
+    config.ff_dropout = ff_dropout
+    config.transformer_dim_feedforward = transformer_dim_feedforward
+    config.pooling_method = pooling_method
+    config.use_cls = use_cls
+    config.embedding_type = embedding_type  
+
+
     if pretrain==1:
         pretrain_dataset = PretrainingDataset(
             x_train_num_scaled, x_train_cat, cat_feature_info, mask_ratio=0.25
@@ -111,6 +121,7 @@ def main(args):
             num_feature_info,
             model_to_use,
             output_dim,
+            config=config
         ).to(device)
 
         # Pretrain the model
@@ -127,16 +138,6 @@ def main(args):
     else:
         pretrained_state_dict = None
 
-    config = DefaultFTTransformerConfig()
-    config.d_model = d_model
-    config.n_layers = n_layers
-    config.n_heads = n_heads
-    config.ff_dropout = ff_dropout
-    config.transformer_dim_feedforward = transformer_dim_feedforward
-    config.pooling_method = pooling_method
-    config.use_cls = use_cls
-    config.embedding_type = embedding_type  
-
 
     model = Model(
         cat_feature_info=cat_feature_info,
@@ -146,14 +147,11 @@ def main(args):
         pretrained_state_dict=pretrained_state_dict,
         config=config
     ).to(device)
-    #
-    # # print(model.state_dict.keys())
-    #
+
     train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
     val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
     test_dataset = MainDataset(x_test_num_scaled, x_test_cat, y_test)
-    #
-    # # Create training dataloader
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
