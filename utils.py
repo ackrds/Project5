@@ -34,4 +34,7 @@ def calculate_multipliers(best_test_pred, maxw_maxl_result):
 
     filtered_results = test_results.dropna().groupby('tourney_date').filter(lambda x: len(x) > 10)
     multipliers = filtered_results[filtered_results['Return'] != 1].groupby('tourney_date')['Return'].mean()  # Exclude rows where 'Return' is 1
-    print('Profit: ', prod(multipliers))
+    profit = prod(multipliers)
+    if profit == 0:
+        print(multipliers)
+    print('Profit: ', profit)
