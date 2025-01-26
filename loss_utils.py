@@ -70,7 +70,7 @@ class HybridLoss(nn.Module):
     Combines cross entropy loss with SCE loss for better calibration during training
     """
 
-    def __init__(self, n_bins=15, n_classes=2, sce_weight=0.1):
+    def __init__(self, n_bins=15, n_classes=2, ce_weight = 0.1, sce_weight=0.1):
         """
         Args:
             n_bins (int): Number of bins for SCE calculation
@@ -80,6 +80,7 @@ class HybridLoss(nn.Module):
         super(HybridLoss, self).__init__()
         self.cross_entropy = nn.CrossEntropyLoss()
         self.sce_criterion = SCELoss(n_bins=n_bins, n_classes=n_classes)
+        self.ce_weight = ce_weight
         self.sce_weight = sce_weight
 
     def forward(self, logits, labels):
@@ -96,4 +97,4 @@ class HybridLoss(nn.Module):
         ce_loss = self.cross_entropy(logits, labels)
         sce_loss = self.sce_criterion(logits, labels)
 
-        return ce_loss + self.sce_weight * sce_loss
+        return ce_loss  + sce_loss

@@ -21,6 +21,7 @@ def main(args):
     pretrain = args.pretrain
     num_epochs = args.num_epochs
     sce_weight = args.sce_weight
+    ce_weight = args.ce_weight
     gamma = args.gamma
 
     # custom output parameters
@@ -170,7 +171,7 @@ def main(args):
     )
 
     # criterion = torch.nn.CrossEntropyLoss()
-    criterion =  HybridLoss(sce_weight=sce_weight)
+    criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=gamma)
     
@@ -207,6 +208,14 @@ def main(args):
 
 
 if __name__ == "__main__":
+    seed = 42  # You can choose any integer as the seed
+    torch.manual_seed(seed)
+    import random
+    random.seed(seed)
+    import numpy as np
+    np.random.seed(seed)
+
+
     parser = argparse.ArgumentParser("main", add_help=True)
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
     parser.add_argument("--learning_rate", type=float, default=0.0001, help="learning rate")
@@ -215,6 +224,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_type", type=lambda x: eval(x), default='FTTransformer', help="type of model to use")
     parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
     parser.add_argument("--sce_weight", type=float, default=0.1, help="sce weight")
+    parser.add_argument("--ce_weight", type=float, default=0.1, help="ce weight")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
     parser.add_argument("--d_model", type=int, default=128, help="d_model")
     parser.add_argument("--transformer_dim_feedforward", type=int, default=256, help="transformer dim_feedforward")
