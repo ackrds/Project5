@@ -8,6 +8,7 @@ from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
 from mambular.base_models import Mambular, FTTransformer, SAINT, MambAttention
 from mambular.configs import DefaultFTTransformerConfig
+from utils import calculate_multipliers
 
 
 def main(args):
@@ -19,6 +20,7 @@ def main(args):
     model_to_use = args.model_type
     pretrain = args.pretrain
     num_epochs = args.num_epochs
+    sce_weight = args.sce_weight
 
     # custom output parameters
     output_dim = args.output_dim
@@ -41,7 +43,7 @@ def main(args):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info = split_df(year=year, month=month)
+    x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month)
 
     # x_train_cat_scaled = []
     # x_val_cat_scaled = []
@@ -168,10 +170,11 @@ def main(args):
     )
 
 
-    criterion = torch.nn.CrossEntropyLoss()
-    # criterion =  HybridLoss()
+    # criterion = torch.nn.CrossEntropyLoss()
+    criterion =  HybridLoss(sce_weight=sce_weight)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    
     trained_model, history = train_model(
         model=model,
         train_loader=train_loader,
@@ -179,7 +182,8 @@ def main(args):
         criterion=criterion,
         optimizer=optimizer,
         num_epochs=num_epochs,
-        device=device
+        device=device,
+        scheduler=scheduler
     )
 
     # Test the model
@@ -191,7 +195,7 @@ def main(args):
         pin_memory=True
     )
 
-    test_loss, test_accuracy = evaluate_model(
+    test_loss, test_accuracy, test_preds = evaluate_model(
         model=trained_model,
         data_loader=test_loader,
         criterion=criterion,
@@ -200,6 +204,8 @@ def main(args):
 
     print(f"Finished testing period {year}-{month}")         
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
+    calculate_multipliers(test_preds.cpu().numpy(), test_columns)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("main", add_help=True)
@@ -209,6 +215,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
     parser.add_argument("--model_type", type=lambda x: eval(x), default='FTTransformer', help="type of model to use")
     parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
+    parser.add_argument("--sce_weight", type=float, default=0.1, help="sce weight")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
     parser.add_argument("--d_model", type=int, default=128, help="d_model")
     parser.add_argument("--transformer_dim_feedforward", type=int, default=256, help="transformer dim_feedforward")

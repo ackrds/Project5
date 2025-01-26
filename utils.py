@@ -1,44 +1,38 @@
-import torch
-import torch.nn.functional as F
-from mambular.base_models import BaseModel
-from torch import nn
+import pandas as pd
+from math import prod
 
 
-class ECELoss(torch.nn.Module):
-    def __init__(self, n_bins=10):
-        super(ECELoss, self).__init__()
-        self.n_bins = n_bins
-        self.bin_boundaries = torch.linspace(0, 1, n_bins + 1)
+def calculate_multipliers(best_test_pred, maxw_maxl_result):
+  probability = pd.DataFrame({'Probability': best_test_pred})
+  test_results = pd.concat([probability, maxw_maxl_result], axis=1).dropna()
+  test_results['Prediction'] = test_results['Probability'].apply(lambda x: 1 if x > 0.5 else 0)
+  test_results['Month'] =  test_results['tourney_date'].dt.month
+  test_results['Return'] = 1
 
-    def forward(self, logits, labels):
-        """
-        Differentiable ECE Loss for binary classification
-        Args:
-            logits: Tensor of shape [batch_size, 1]
-            labels: Tensor of shape [batch_size, 1]
-        """
-        # Get predicted probabilities
-        probs = torch.sigmoid(logits)
+  for index, row in test_results.iterrows():
 
-        # Initialize ECE
-        ece = torch.zeros(1, device=logits.device, requires_grad=True)
+      implied_probability_player1 = 1 / row['Player 1 Odd']
+      implied_probability_player2 = 1 / row['Player 2 Odd']
 
-        # Convert to binary accuracies (0 or 1)
-        predictions = (probs > 0.5).float()
-        accuracies = (predictions == labels).float()
+      p = row['Probability']  # Model's predicted probability
+      q = 1 - p  # Probability of the other outcome
 
-        # Compute ECE for each bin
-        for bin_lower, bin_upper in zip(self.bin_boundaries[:-1], self.bin_boundaries[1:]):
-            # Find samples in bin
-            in_bin = torch.logical_and(probs > bin_lower, probs <= bin_upper)
+      if p - implied_probability_player1 > 0.01 and p > 0.3:
 
-            if in_bin.any():
-                # Calculate average confidence and accuracy in bin
-                prop_in_bin = in_bin.float().mean()
-                accuracy_in_bin = accuracies[in_bin].float().mean()
-                avg_confidence_in_bin = probs[in_bin].mean()
+          if row['Result'] == 1:  # Model correctly predicted Player 1 would win
+              test_results.at[index, 'Return'] = row['Player 1 Odd']  # You win and get back odds
+          else:
+              test_results.at[index, 'Return'] = 0  # You lose and get back 0
 
-                # Add weighted absolute difference to ECE
-                ece = ece + prop_in_bin * torch.abs(avg_confidence_in_bin - accuracy_in_bin)
+      elif q - implied_probability_player2 > 0.01 and q > 0.3:
 
-        return ece
+          if row['Result'] == 0:  # Model correctly predicted Player 2 would win
+              test_results.at[index, 'Return'] = row['Player 2 Odd']  # You win and get back odds
+          else:
+              test_results.at[index, 'Return'] = 0  # You lose and get back 0
+      else:
+          test_results.at[index, 'Return'] = 1
+
+  filtered_results = test_results.dropna().groupby('tourney_date').filter(lambda x: len(x) > 10)
+  multipliers = filtered_results[filtered_results['Return'] != 1].groupby('tourney_date')['Return'].mean()  # Exclude rows where 'Return' is 1
+  print('Profit: ', prod(multipliers))

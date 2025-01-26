@@ -100,7 +100,7 @@ def evaluate_model(model, data_loader, criterion, device):
     total_loss = 0
     total_samples = 0
     total_correct = 0
-
+    preds = []
     with torch.no_grad():
         for num_features, cat_features, labels in data_loader:
             # Move data to device
@@ -119,16 +119,17 @@ def evaluate_model(model, data_loader, criterion, device):
             _, predicted = outputs.max(1)
             total_samples += labels.size(0)
             total_correct += predicted.eq(labels).sum().item()
+            preds.append(predicted)
 
     epoch_loss = total_loss / len(data_loader)
     epoch_acc = 100. * total_correct / total_samples
-
+    preds = torch.cat(preds)
     # Store metrics
 
-    return epoch_loss, epoch_acc
+    return epoch_loss, epoch_acc, preds
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, scheduler):
     """
     Train the model using the provided data loader.
 
@@ -160,6 +161,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         running_loss = 0.0
         correct = 0
         total = 0
+
 
         for batch_idx, (num_feats, cat_feats, labels) in enumerate(train_loader):
             # Move data to device
@@ -196,6 +198,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             #           f'Acc: {100. * correct / total:.2f}%')
 
         # Calculate epoch metrics
+        scheduler.step()
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
 
@@ -207,8 +210,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
               f'Loss: {epoch_loss:.4f}, '
               f'Accuracy: {epoch_acc:.2f}%')
 
-        if epoch % 10 == 0:
-            val_loss, val_acc = evaluate_model(model, val_loader, criterion, device)
+        if epoch % 5 == 0:
+            val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
             print(f'Val Loss: {val_loss:.4f}, '
                   f'Val Accuracy: {val_acc:.2f}%')
 

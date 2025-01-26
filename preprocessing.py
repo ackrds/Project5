@@ -1,6 +1,7 @@
 import pandas as pd
 import torch
 from sklearn.preprocessing import StandardScaler
+from math import prod
 
 
 def split_df(year, month):
@@ -52,7 +53,15 @@ def split_df(year, month):
                 'Surface Grass',
                 'Surface Hard',
                     ]
-
+    test_columns = [
+                    'player_name',
+                    'opponent_name',
+                    'Player 1 Odd', 
+                    'Player 2 Odd', 
+                    'Result', 
+                    'tourney_id', 
+                    'tourney_date'
+                    ]
     cat_feature_info = {key:{'dimension':1, 'categories':len(list(set(df[key])))} for key in cat_features}
     num_feature_info = {key:{'dimension':1, 'categories':None} for key in num_features}
 
@@ -69,6 +78,10 @@ def split_df(year, month):
     train = df[df['tourney_date'] < val_start]  # Train and validate on data before test period
     val = df[(df['tourney_date'] >= val_start) & (df['tourney_date'] < test_start)  ]
     test = df[(df['tourney_date'] >= test_start) & (df['tourney_date'] <= test_end)]  # Test on 3-month window
+    test_columns = test[test_columns]
+    print(f"Validation start date: {val_start}")
+    print(f"Test start date: {test_start}")
+    print(f"Test end date: {test_end}")
 
     # x_train= train[features]
     x_train_num = train[num_features]
@@ -93,7 +106,7 @@ def split_df(year, month):
     x_test_num = [torch.tensor(x_test_num[f].values, dtype=torch.float32).unsqueeze(-1) for f in num_features]
     x_test_cat = [torch.tensor(x_test_cat[f].values).long() for f in cat_features]
 
-    return x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info
+    return x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns
 
 
 def hash_features(feature, num_bins=1, num_hashes=1):
@@ -119,6 +132,9 @@ def hash_features(feature, num_bins=1, num_hashes=1):
         combined = (combined + h2) % num_bins
 
     return combined.long()
+
+
+
 
 if __name__ == '__main__':
     split_df()
