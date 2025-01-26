@@ -21,6 +21,7 @@ def main(args):
     pretrain = args.pretrain
     num_epochs = args.num_epochs
     sce_weight = args.sce_weight
+    gamma = args.gamma
 
     # custom output parameters
     output_dim = args.output_dim
@@ -171,7 +172,7 @@ def main(args):
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(sce_weight=sce_weight)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=gamma)
     
     trained_model, history = train_model(
         model=model,
@@ -225,7 +226,7 @@ if __name__ == "__main__":
     parser.add_argument("--embedding_type", type=str, default='linear', help="embedding type")
     parser.add_argument("--year", type=int, default=2024, help="year")
     parser.add_argument("--month", type=int, default=1, help="month")
-
+    parser.add_argument("--gamma", type=float, default=0.5, help="gamma")
     args = parser.parse_args()
     main(args)
 
