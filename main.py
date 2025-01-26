@@ -2,8 +2,7 @@ import argparse
 import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
-# from model import Model, MainDataset, train_model, evaluate_model
-from model import Model, MainDataset, train_models, evaluate_models
+from model import Model, MainDataset, train_model, evaluate_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
 from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
@@ -142,25 +141,7 @@ def main(args):
         pretrained_state_dict = None
 
 
-    model1 = Model(
-        cat_feature_info=cat_feature_info,
-        num_feature_info=num_feature_info,
-        model=model_to_use,
-        output_dim=output_dim,
-        pretrained_state_dict=pretrained_state_dict,
-        config=config
-    ).to(device)
-
-    model2 = Model(
-        cat_feature_info=cat_feature_info,
-        num_feature_info=num_feature_info,
-        model=model_to_use,
-        output_dim=output_dim,
-        pretrained_state_dict=pretrained_state_dict,
-        config=config
-    ).to(device)
-
-    model3 = Model(
+    model = Model(
         cat_feature_info=cat_feature_info,
         num_feature_info=num_feature_info,
         model=model_to_use,
@@ -173,7 +154,7 @@ def main(args):
     val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
     test_dataset = MainDataset(x_test_num_scaled, x_test_cat, y_test)
 
-    train_loader1 = DataLoader(
+    train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=False,
@@ -181,39 +162,7 @@ def main(args):
         pin_memory=True
     )
 
-    val_loader1 = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=4,
-        pin_memory=True
-    )
-
-    train_loader2 = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=4,
-        pin_memory=True
-    )
-
-    val_loader2 = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=4,
-        pin_memory=True
-    )
-
-    train_loader3 = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=4,
-        pin_memory=True
-    )
-
-    val_loader3 = DataLoader(
+    val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
@@ -223,55 +172,39 @@ def main(args):
 
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
-
-    optimizer1 = torch.optim.Adam(model1.parameters(), lr=learning_rate)
-    scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer1, step_size=5, gamma=gamma)
-
-    optimizer2 = torch.optim.Adam(model2.parameters(), lr=learning_rate)
-    scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, step_size=5, gamma=gamma)
-
-    optimizer3 = torch.optim.Adam(model3.parameters(), lr=learning_rate)
-    scheduler3 = torch.optim.lr_scheduler.StepLR(optimizer3, step_size=5, gamma=gamma)
-
-    models = [model1, model2, model3]
-    train_loaders = [train_loader1, train_loader2, train_loader3]
-    val_loaders = [val_loader1, val_loader2, val_loader3]
-    criterions = [criterion, criterion, criterion]
-    optimizers = [optimizer1, optimizer2, optimizer3]
-    schedulers = [scheduler1, scheduler2, scheduler3]
-
-    models, histories  = train_models(models, train_loaders, val_loaders, criterions, optimizers, num_epochs, device, schedulers)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=gamma)
     
-    # trained_model, history = train_model(
-    #     model=model,
-    #     train_loader=train_loader,
-    #     val_loader=val_loader,
-    #     criterion=criterion,
-    #     optimizer=optimizer,
-    #     num_epochs=num_epochs,
-    #     device=device,
-    #     scheduler=scheduler
-    # )
+    trained_model, history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        num_epochs=num_epochs,
+        device=device,
+        scheduler=scheduler
+    )
 
     # Test the model
-    # test_loader = DataLoader(
-    #     test_dataset,
-    #     batch_size=batch_size,
-    #     shuffle=False,
-    #     num_workers=4,
-    #     pin_memory=True
-    # )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True
+    )
 
-    # test_loss, test_accuracy, test_preds = evaluate_model(
-    #     model=trained_model,
-    #     data_loader=test_loader,
-    #     criterion=criterion,
-    #     device=device
-    # )
+    test_loss, test_accuracy, test_preds = evaluate_model(
+        model=trained_model,
+        data_loader=test_loader,
+        criterion=criterion,
+        device=device
+    )
 
-    # print(f"Finished testing period {year}-{month}")         
-    # print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
-    # calculate_multipliers(test_preds.cpu().numpy(), test_columns)
+    print(f"Finished testing period {year}-{month}")         
+    print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
+    calculate_multipliers(test_preds.cpu().numpy(), test_columns)
 
 
 if __name__ == "__main__":
