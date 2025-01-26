@@ -32,10 +32,10 @@ def main(args):
     transformer_dim_feedforward = args.transformer_dim_feedforward
     n_layers = args.n_layers
     n_heads = args.n_heads
-    ff_dropout = args.ff_dropout 
     pooling_method = args.pooling_method
     use_cls = args.use_cls
     embedding_type = args.embedding_type
+    attn_dropout = args.attn_dropout
 
     # data parameters
     year = args.year
@@ -86,11 +86,11 @@ def main(args):
     config.d_model = d_model
     config.n_layers = n_layers
     config.n_heads = n_heads
-    config.ff_dropout = ff_dropout
     config.transformer_dim_feedforward = transformer_dim_feedforward
     config.pooling_method = pooling_method
     config.use_cls = use_cls
     config.embedding_type = embedding_type  
+    config.attn_dropout = attn_dropout
 
 
     if pretrain==1:
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     parser.add_argument("--transformer_dim_feedforward", type=int, default=256, help="transformer dim_feedforward")
     parser.add_argument("--n_layers", type=int, default=4, help="n_layers")
     parser.add_argument("--n_heads", type=int, default=8, help="n_heads")
-    parser.add_argument("--ff_dropout", type=float, default=0.1, help="ff_dropout")
+    parser.add_argument("--attn_dropout", type=float, default=0.1, help="attn_dropout")
     parser.add_argument("--use_cls", type=bool, default=False, help="use cls")
     parser.add_argument("--pooling_method", type=str, default='avg', help="pooling method")
     parser.add_argument("--embedding_type", type=str, default='linear', help="embedding type")

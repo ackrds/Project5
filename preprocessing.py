@@ -71,13 +71,24 @@ def split_df(year, month):
     # df['opponent_name'] = hash_features(df['opponent_name'].values)
 
     test_start = f'{year}-{month:02d}-01'
-    val_start = pd.to_datetime(test_start) - pd.DateOffset(months=12) - pd.DateOffset(days=1)
-    test_end = pd.to_datetime(test_start) + pd.DateOffset(months=3) - pd.DateOffset(days=1)
+    if year == 2021 :
+        val_start = pd.to_datetime(test_start) - pd.DateOffset(months=24) - pd.DateOffset(days=1)
+        val_end = pd.to_datetime(test_start) - pd.DateOffset(months=12) - pd.DateOffset(days=1)
+        test_end = pd.to_datetime(test_start) + pd.DateOffset(months=3) - pd.DateOffset(days=1)
 
-    # Split train, validation, and test
-    train = df[df['tourney_date'] < val_start]  # Train and validate on data before test period
-    val = df[(df['tourney_date'] >= val_start) & (df['tourney_date'] < test_start)  ]
-    test = df[(df['tourney_date'] >= test_start) & (df['tourney_date'] <= test_end)]  # Test on 3-month window
+        # Split train, validation, and test
+        train = df[df['tourney_date'] < val_start]  # Train and validate on data before test period
+        val = df[(df['tourney_date'] >= val_start) & (df['tourney_date'] < val_end)  ]
+        test = df[(df['tourney_date'] >= test_start) & (df['tourney_date'] <= test_end)]  # Test on 3-month window
+    else:
+        val_start = pd.to_datetime(test_start) - pd.DateOffset(months=12) - pd.DateOffset(days=1)
+        test_end = pd.to_datetime(test_start) + pd.DateOffset(months=3) - pd.DateOffset(days=1)
+
+        # Split train, validation, and test
+        train = df[df['tourney_date'] < val_start]  # Train and validate on data before test period
+        val = df[(df['tourney_date'] >= val_start) & (df['tourney_date'] < test_start) ]
+        test = df[(df['tourney_date'] >= test_start) & (df['tourney_date'] <= test_end)]  # Test on 3-month window
+
     test_columns = test[test_columns]
     print(f"Validation start date: {val_start}")
     print(f"Test start date: {test_start}")
