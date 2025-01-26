@@ -1,4 +1,5 @@
 import argparse
+import json
 import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
@@ -6,8 +7,8 @@ from model import Model, MainDataset, train_model, evaluate_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
 from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
-from mambular.base_models import  FTTransformer, Mambular, SAINT, MambAttention, MambaTab
-from mambular.configs import DefaultFTTransformerConfig, DefaultMambaTabConfig, DefaultSAINTConfig, DefaultMambularConfig, DefaultMambAttentionConfig, DefaultMambaTabConfig
+from mambular.base_models import  * 
+from mambular.configs import *
 from utils import calculate_multipliers
 
 
@@ -24,19 +25,11 @@ def main(args):
     ce_weight = args.ce_weight
     gamma = args.gamma
 
+
     # custom output parameters
     output_dim = args.output_dim
 
     # model parameters
-
-    d_model = args.d_model # embedding dimension
-    transformer_dim_feedforward = args.transformer_dim_feedforward
-    n_layers = args.n_layers
-    n_heads = args.n_heads
-    pooling_method = args.pooling_method
-    use_cls = args.use_cls
-    embedding_type = args.embedding_type
-    attn_dropout = args.attn_dropout
 
     # data parameters
     year = args.year
@@ -47,52 +40,47 @@ def main(args):
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month)
 
-    # x_train_cat_scaled = []
-    # x_val_cat_scaled = []
-    # x_test_cat_scaled = []
+    x_train_cat_scaled = []
+    x_val_cat_scaled = []
+    x_test_cat_scaled = []
 
-    # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
-    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
-    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
-    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
+    for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
+        x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
+        x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
+        x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
     
-    # x_train_cat = x_train_cat_scaled
-    # x_val_cat = x_val_cat_scaled
-    # x_test_cat = x_test_cat_scaled
+    x_train_cat = x_train_cat_scaled
+    x_val_cat = x_val_cat_scaled
+    x_test_cat = x_test_cat_scaled
 
-    # y_train = y_train[:10]
-    # y_val = y_val[:10]
-    # y_test = y_test[:1000]
-
-    # scaler = StandardScaler()
-    # x_train_num_scaled = []
-    # x_val_num_scaled = []
-    # x_test_num_scaled = []
-    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
-    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
-    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
+    y_train = y_train[:10]
+    y_val = y_val[:10]
+    y_test = y_test[:1000]
 
     scaler = StandardScaler()
     x_train_num_scaled = []
     x_val_num_scaled = []
     x_test_num_scaled = []
     for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
-        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
-        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
+        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
+        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
+
+    # scaler = StandardScaler()
+    # x_train_num_scaled = []
+    # x_val_num_scaled = []
+    # x_test_num_scaled = []
+    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
+    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
+    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
+    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
     
-    # config = eval(f"Default{model_to_use}Config()")
     config = eval(f"Default{model_to_use}Config()")
     model_to_use = eval(f"{model_to_use}")
-    # config.d_model = d_model
-    # config.n_layers = n_layers
-    # config.n_heads = n_heads
-    # config.transformer_dim_feedforward = transformer_dim_feedforward
-    # config.pooling_method = pooling_method
-    # config.use_cls = use_cls
-    # config.embedding_type = embedding_type  
-    # config.attn_dropout = attn_dropout
+    if len(args.config_values.keys()) > 0:
+        for key, value in args.config_values.items():
+            setattr(config, key, value)
+
 
 
     if pretrain==1:
@@ -216,6 +204,11 @@ if __name__ == "__main__":
     random.seed(seed)
     import numpy as np
     np.random.seed(seed)
+    def parse_dict(string):
+        try:
+            return json.loads(string)
+        except json.JSONDecodeError:
+            raise argparse.ArgumentTypeError("Invalid dictionary format")
 
 
     parser = argparse.ArgumentParser("main", add_help=True)
@@ -228,14 +221,18 @@ if __name__ == "__main__":
     parser.add_argument("--sce_weight", type=float, default=0.1, help="sce weight")
     parser.add_argument("--ce_weight", type=float, default=0.1, help="ce weight")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
-    parser.add_argument("--d_model", type=int, default=128, help="d_model")
-    parser.add_argument("--transformer_dim_feedforward", type=int, default=256, help="transformer dim_feedforward")
-    parser.add_argument("--n_layers", type=int, default=4, help="n_layers")
-    parser.add_argument("--n_heads", type=int, default=8, help="n_heads")
-    parser.add_argument("--attn_dropout", type=float, default=0.1, help="attn_dropout")
-    parser.add_argument("--use_cls", type=bool, default=False, help="use cls")
-    parser.add_argument("--pooling_method", type=str, default='avg', help="pooling method")
-    parser.add_argument("--embedding_type", type=str, default='linear', help="embedding type")
+
+    # parser.add_argument("--d_model", type=int, default=128, help="d_model")
+    # parser.add_argument("--transformer_dim_feedforward", type=int, default=256, help="transformer dim_feedforward")
+    # parser.add_argument("--n_layers", type=int, default=4, help="n_layers")
+    # parser.add_argument("--n_heads", type=int, default=8, help="n_heads")
+    # parser.add_argument("--attn_dropout", type=float, default=0.1, help="attn_dropout")
+    # parser.add_argument("--use_cls", type=bool, default=False, help="use cls")
+    # parser.add_argument("--pooling_method", type=str, default='avg', help="pooling method")
+    # parser.add_argument("--embedding_type", type=str, default='linear', help="embedding type")
+
+    parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
+
     parser.add_argument("--year", type=int, default=2024, help="year")
     parser.add_argument("--month", type=int, default=1, help="month")
     parser.add_argument("--gamma", type=float, default=0.5, help="gamma")
