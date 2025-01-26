@@ -2,7 +2,6 @@ import torch
 from mambular.base_models import BaseModel
 from torch.utils.data import Dataset, DataLoader
 from torch import nn
-from mambular.configs import DefaultFTTransformerConfig
 
 class Model(BaseModel):
     def __init__(
@@ -16,9 +15,8 @@ class Model(BaseModel):
             **kwargs,
     ):
         super().__init__()
+
         self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
-        if config is None:
-            config = DefaultFTTransformerConfig()
         self.model = model(cat_feature_info, num_feature_info, output_dim, config)
         self.output_dim = output_dim
 

@@ -6,8 +6,8 @@ from model import Model, MainDataset, train_model, evaluate_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
 from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
-from mambular.base_models import Mambular, FTTransformer, SAINT, MambAttention
-from mambular.configs import DefaultFTTransformerConfig
+from mambular.base_models import  FTTransformer, Mambular, SAINT, MambAttention, MambaTab
+from mambular.configs import DefaultFTTransformerConfig, DefaultMambaTabConfig, DefaultSAINTConfig, DefaultMambularConfig, DefaultMambAttentionConfig, DefaultMambaTabConfig
 from utils import calculate_multipliers
 
 
@@ -28,6 +28,7 @@ def main(args):
     output_dim = args.output_dim
 
     # model parameters
+
     d_model = args.d_model # embedding dimension
     transformer_dim_feedforward = args.transformer_dim_feedforward
     n_layers = args.n_layers
@@ -80,17 +81,18 @@ def main(args):
         x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
         x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
         x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
-
     
-    config = DefaultFTTransformerConfig()
-    config.d_model = d_model
-    config.n_layers = n_layers
-    config.n_heads = n_heads
-    config.transformer_dim_feedforward = transformer_dim_feedforward
-    config.pooling_method = pooling_method
-    config.use_cls = use_cls
-    config.embedding_type = embedding_type  
-    config.attn_dropout = attn_dropout
+    # config = eval(f"Default{model_to_use}Config()")
+    config = eval(f"Default{model_to_use}Config()")
+    model_to_use = eval(f"{model_to_use}")
+    # config.d_model = d_model
+    # config.n_layers = n_layers
+    # config.n_heads = n_heads
+    # config.transformer_dim_feedforward = transformer_dim_feedforward
+    # config.pooling_method = pooling_method
+    # config.use_cls = use_cls
+    # config.embedding_type = embedding_type  
+    # config.attn_dropout = attn_dropout
 
 
     if pretrain==1:
@@ -221,7 +223,7 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=0.0001, help="learning rate")
     parser.add_argument("--batch_size", type=int, default=512, help="batch size")
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
-    parser.add_argument("--model_type", type=lambda x: eval(x), default='FTTransformer', help="type of model to use")
+    parser.add_argument("--model_type", type=str, default='FTTransformer', help="type of model to use")
     parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
     parser.add_argument("--sce_weight", type=float, default=0.1, help="sce weight")
     parser.add_argument("--ce_weight", type=float, default=0.1, help="ce weight")
