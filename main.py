@@ -148,13 +148,13 @@ def main(args):
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=False,
     )
 
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=False,
     )
 
     # criterion = torch.nn.CrossEntropyLoss()
@@ -177,9 +177,7 @@ def main(args):
     test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
-        shuffle=False,
-        num_workers=4,
-        pin_memory=True
+        shuffle=True,
     )
 
     test_loss, test_accuracy, test_preds = evaluate_model(
