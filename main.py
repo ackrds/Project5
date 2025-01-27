@@ -16,6 +16,7 @@ def main(args):
 
     # training parameters
     batch_size = args.batch_size
+    test_batch_size = args.test_batch_size
     pretrain_epochs = args.pretrain_epochs
     learning_rate = args.learning_rate
     model_to_use = args.model_type
@@ -180,7 +181,7 @@ def main(args):
     # Test the model
     test_loader = DataLoader(
         test_dataset,
-        batch_size=batch_size,
+        batch_size=test_batch_size,
         shuffle=True,
         num_workers=4,
         pin_memory=True
@@ -223,7 +224,7 @@ if __name__ == "__main__":
     parser.add_argument("--ce_weight", type=float, default=0.1, help="ce weight")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
 
-
+    parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
     parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
 
     parser.add_argument("--year", type=int, default=2024, help="year")
