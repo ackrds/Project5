@@ -76,7 +76,6 @@ def main(args):
         x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
     
     config = eval(f"Default{model_to_use}Config()")
-    print(config.use_cls)
     model_to_use = eval(f"{model_to_use}")
 
     if len(args.config_values.keys()) > 0:
