@@ -2,7 +2,7 @@ import argparse
 import json
 import torch
 from torch.utils.data import Dataset, DataLoader
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from model import Model, MainDataset, train_model, evaluate_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
 from loss_utils import HybridLoss
@@ -35,6 +35,7 @@ def main(args):
     # data parameters
     year = args.year
     month = args.month
+    scaler = args.scaler
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -67,7 +68,7 @@ def main(args):
     #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
     #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
 
-    scaler = StandardScaler()
+    scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
     x_train_num_scaled = []
     x_val_num_scaled = []
     x_test_num_scaled = []
@@ -223,6 +224,7 @@ if __name__ == "__main__":
     parser.add_argument("--sce_weight", type=float, default=0.1, help="sce weight")
     parser.add_argument("--ce_weight", type=float, default=0.1, help="ce weight")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
+    parser.add_argument("--scaler", type=str, default='standard', help="scaler to use")
 
     parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
     parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")

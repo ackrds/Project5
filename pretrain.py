@@ -29,17 +29,17 @@ class PretrainingModel(BaseModel):
         self.num_heads = nn.ModuleList([
             nn.Sequential(
                 nn.SELU(),
-                nn.Linear(output_dim, 32),
+                nn.Linear(output_dim, 16),
                 nn.SELU(),
-                nn.Linear(32, 1)
+                nn.Linear(16, 1)
             ) for feat in num_feature_info
         ])
 
         self.cat_heads = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(output_dim, 32),
+                nn.Linear(output_dim, 16),
                 nn.ReLU(),
-                nn.Linear(32, info["categories"])
+                nn.Linear(16, info["categories"])
             ) for info in cat_feature_info.values()
         ])
 

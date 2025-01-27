@@ -20,9 +20,8 @@ class Model(BaseModel):
         self.model = model(cat_feature_info, num_feature_info, output_dim, config)
         self.output_dim = output_dim
 
-        self.state_dict = pretrained_state_dict
-        if self.state_dict is not None:
-            self.model.load_state_dict(self.state_dict)  # Fixed loading state dict
+        if pretrained_state_dict is not None:
+            self.model.load_state_dict(pretrained_state_dict)  # Fixed loading state dict
 
         if self.output_dim > 2:
             self.output_head =     nn.Sequential(nn.SELU(),
@@ -126,6 +125,43 @@ def evaluate_model(model, data_loader, criterion, device):
     preds = torch.cat(preds)
     # Store metrics
     return epoch_loss, epoch_acc, preds
+
+
+# def test_model(model, test_data, criterion, device):
+#     """Evaluate the model on given data loader."""
+#     model.eval()
+#     total_loss = 0
+#     total_samples = 0
+#     total_correct = 0
+#     preds = []
+#     with torch.no_grad():
+#         for num_features, cat_features, labels in test_data:
+#             # Move data to device
+#             num_features = [f.to(device) for f in num_features]
+#             cat_features = [f.to(device) for f in cat_features]
+
+#             labels = labels.to(device)
+#             labels = labels.squeeze()
+
+#             outputs = model(num_features, cat_features)
+#             loss = criterion(outputs, labels.long())
+
+#             # total_loss += loss.item() * labels.size(0)
+
+#             total_loss += loss.item()
+#             probabilities = outputs[:, 1]
+#             _, predicted = outputs.max(1)
+            
+#             total_samples += labels.size(0)
+#             total_correct += predicted.eq(labels).sum().item()
+#             preds.append(probabilities)
+
+#     epoch_loss = total_loss / len(data_loader)
+#     epoch_acc = 100. * total_correct / total_samples
+#     preds = torch.cat(preds)
+#     # Store metrics
+#     return epoch_loss, epoch_acc, preds
+
 
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, scheduler):
