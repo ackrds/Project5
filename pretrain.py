@@ -246,9 +246,9 @@ def pretrain_model(model, train_loader, val_loader, num_epochs, device, lr=0.001
             total_loss += loss.item()
             num_batches += 1
 
-            if batch_idx % 10 == 0:
-                print(
-                    f"Epoch [{epoch + 1}/{num_epochs}], Batch [{batch_idx}/{len(train_loader)}], Loss: {loss.item():.4f}")
+            # if batch_idx % 10 == 0:
+            #     print(
+            #         f"Epoch [{epoch + 1}/{num_epochs}], Batch [{batch_idx}/{len(train_loader)}], Loss: {loss.item():.4f}")
 
         avg_loss = total_loss / num_batches
         print(f"Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}")

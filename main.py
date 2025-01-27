@@ -22,6 +22,7 @@ def main(args):
     model_to_use = args.model_type
     pretrain = args.pretrain
     num_epochs = args.num_epochs
+    use_embeddings = args.use_embeddings
     sce_weight = args.sce_weight
     ce_weight = args.ce_weight
     gamma = args.gamma
@@ -40,7 +41,7 @@ def main(args):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month)
+    x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month, embeddings=use_embeddings)
 
     # x_train_cat_scaled = []
     # x_val_cat_scaled = []
@@ -225,7 +226,8 @@ if __name__ == "__main__":
     parser.add_argument("--ce_weight", type=float, default=0.1, help="ce weight")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
     parser.add_argument("--scaler", type=str, default='standard', help="scaler to use")
-
+    parser.add_argument("--use_embeddings", type=bool, default=True, help="use embeddings")
+    
     parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
     parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
 

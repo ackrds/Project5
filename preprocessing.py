@@ -4,7 +4,7 @@ from sklearn.preprocessing import StandardScaler
 from math import prod
 
 
-def split_df(year, month):
+def split_df(year, month, embeddings=True):
 
     df = pd.read_csv('tennis_preprocessed.csv')
     df['tourney_date'] = pd.to_datetime(df['tourney_date'])
@@ -108,13 +108,19 @@ def split_df(year, month):
     y_test = torch.tensor(test['Result'].values).long().unsqueeze(-1)
 
     # Convert numerical features to tensors
-    x_train_num = [torch.tensor(x_train_num[f].values, dtype=torch.float32).unsqueeze(-1) for f in num_features]
+    if embeddings:
+        x_train_num = [torch.tensor(x_train_num[f].values, dtype=torch.float32).unsqueeze(-1) for f in num_features]
+        x_val_num = [torch.tensor(x_val_num[f].values, dtype=torch.float32).unsqueeze(-1) for f in num_features]
+        x_test_num = [torch.tensor(x_test_num[f].values, dtype=torch.float32).unsqueeze(-1) for f in num_features]
+    else:
+        x_train_num = [torch.tensor(x_train_num[f].values, dtype=torch.float32)for f in num_features]
+        x_val_num = [torch.tensor(x_val_num[f].values, dtype=torch.float32) for f in num_features]
+        x_test_num = [torch.tensor(x_test_num[f].values, dtype=torch.float32) for f in num_features]
+
     x_train_cat = [torch.tensor(x_train_cat[f].values).long() for f in cat_features]
 
-    x_val_num = [torch.tensor(x_val_num[f].values, dtype=torch.float32).unsqueeze(-1) for f in num_features]
     x_val_cat = [torch.tensor(x_val_cat[f].values).long() for f in cat_features]
 
-    x_test_num = [torch.tensor(x_test_num[f].values, dtype=torch.float32).unsqueeze(-1) for f in num_features]
     x_test_cat = [torch.tensor(x_test_cat[f].values).long() for f in cat_features]
 
     return x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns
