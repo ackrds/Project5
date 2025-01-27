@@ -185,7 +185,7 @@ def main(args):
         num_workers=4,
         pin_memory=True
     )
-
+    print(31)
     test_loss, test_accuracy, test_preds = evaluate_model(
         model=trained_model,
         data_loader=test_loader,
