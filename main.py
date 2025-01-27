@@ -76,6 +76,7 @@ def main(args):
         x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
     
     config = eval(f"Default{model_to_use}Config()")
+    print(config.use_cls)
     model_to_use = eval(f"{model_to_use}")
 
     if len(args.config_values.keys()) > 0:
@@ -149,12 +150,16 @@ def main(args):
         train_dataset,
         batch_size=batch_size,
         shuffle=False,
+        num_workers=4,
+        pin_memory=True
     )
 
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
+        num_workers=4,
+        pin_memory=True
     )
 
     # criterion = torch.nn.CrossEntropyLoss()
@@ -177,7 +182,9 @@ def main(args):
     test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True
     )
 
     test_loss, test_accuracy, test_preds = evaluate_model(
