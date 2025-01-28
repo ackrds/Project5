@@ -19,6 +19,7 @@ def main(args):
     test_batch_size = args.test_batch_size
     pretrain = args.pretrain
     pretrain_epochs = args.pretrain_epochs
+    pretrain_learning_rate = args.pretrain_learning_rate
     learning_rate = args.learning_rate
     model_to_use = args.model_type
     num_epochs = args.num_epochs
@@ -136,7 +137,8 @@ def main(args):
             pretrain_loader,
             pretrain_loader,
             pretrain_epochs,
-            device
+            device, 
+            lr=pretrain_learning_rate
         )
 
         pretrained_state_dict = pretrained_model.encoder.state_dict()
@@ -227,6 +229,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("main", add_help=True)
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
+    parser.add_argument("--pretrain_learning_rate", type=float, default=0.001, help="pretrain learning rate")
     parser.add_argument("--learning_rate", type=float, default=0.0001, help="learning rate")
     parser.add_argument("--batch_size", type=int, default=512, help="batch size")
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")

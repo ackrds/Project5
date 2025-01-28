@@ -147,13 +147,13 @@ class PretrainingDataset(Dataset):
                 shuffled_indices = torch.randperm(num_masked)
 
                 # 80% replace with mask token (0)
-                mask_80 = shuffled_indices[:int(0.8 * num_masked)]
+                mask_80 = shuffled_indices[:int(0.5 * num_masked)]
                 if len(mask_80) > 0:
                     rows_80 = masked_indices[0][mask_80]
                     masked_cat[i][rows_80] = 0
 
                 # 10% replace with random categories
-                mask_10 = shuffled_indices[int(0.8 * num_masked):int(0.9 * num_masked)]
+                mask_10 = shuffled_indices[int(0.5 * num_masked):int(0.9 * num_masked)]
                 if len(mask_10) > 0:
                     rows_10 = masked_indices[0][mask_10]
                     random_cats = torch.randint(1, num_categories, (len(mask_10),))
