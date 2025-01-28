@@ -17,16 +17,16 @@ def main(args):
     # training parameters
     batch_size = args.batch_size
     test_batch_size = args.test_batch_size
+    pretrain = args.pretrain
     pretrain_epochs = args.pretrain_epochs
     learning_rate = args.learning_rate
     model_to_use = args.model_type
-    pretrain = args.pretrain
     num_epochs = args.num_epochs
     use_embeddings = args.use_embeddings
     sce_weight = args.sce_weight
     ce_weight = args.ce_weight
+    mask_ratio = args.mask_ratio
     gamma = args.gamma
-
 
     # custom output parameters
     output_dim = args.output_dim
@@ -41,23 +41,23 @@ def main(args):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month, embeddings=use_embeddings)
+    x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month)
 
     # x_train_cat_scaled = []
     # x_val_cat_scaled = []
     # x_test_cat_scaled = []
 
     # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
-    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
-    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
+    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
+    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
     #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
     
     # x_train_cat = x_train_cat_scaled
     # x_val_cat = x_val_cat_scaled
     # x_test_cat = x_test_cat_scaled
 
-    # y_train = y_train[:10]
-    # y_val = y_val[:10]
+    # y_train = y_train[:100]
+    # y_val = y_val[:100]
     # y_test = y_test[:1000]
 
     # scaler = StandardScaler()
@@ -65,8 +65,8 @@ def main(args):
     # x_val_num_scaled = []
     # x_test_num_scaled = []
     # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
-    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
+    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
+    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
     #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
 
     scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
@@ -77,14 +77,24 @@ def main(args):
         x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
         x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
         x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+
+    if use_embeddings == 1:
+        x_train_cat = [f.unsqueeze(1) for f in x_train_cat]
+        x_val_cat = [f.unsqueeze(1) for f in x_val_cat]
+        x_test_cat = [f.unsqueeze(1) for f in x_test_cat]
+
     
     config = eval(f"Default{model_to_use}Config()")
     model_to_use = eval(f"{model_to_use}")
 
+    print(x_train_num_scaled[0].shape)
+    print(x_train_cat[0].shape)
+
+
+
     if len(args.config_values.keys()) > 0:
         for key, value in args.config_values.items():
             setattr(config, key, value)
-
 
 
     if pretrain==1:
@@ -93,7 +103,7 @@ def main(args):
         )
 
         preval_dataset = PretrainingDataset(
-            x_val_num_scaled, x_val_cat, cat_feature_info, mask_ratio=0.25
+            x_val_num_scaled, x_val_cat, cat_feature_info, mask_ratio=mask_ratio
         )
         pretrain_loader = DataLoader(
             pretrain_dataset,
@@ -159,14 +169,14 @@ def main(args):
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=4,
         pin_memory=True
     )
 
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=gamma)
     
     trained_model, history = train_model(
@@ -222,12 +232,13 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
     parser.add_argument("--model_type", type=str, default='FTTransformer', help="type of model to use")
     parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
-    parser.add_argument("--sce_weight", type=float, default=0.1, help="sce weight")
-    parser.add_argument("--ce_weight", type=float, default=0.1, help="ce weight")
+    parser.add_argument("--sce_weight", type=float, default=1, help="sce weight")
+    parser.add_argument("--ce_weight", type=float, default=0.5, help="ce weight")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
     parser.add_argument("--scaler", type=str, default='standard', help="scaler to use")
-    parser.add_argument("--use_embeddings", type=bool, default=True, help="use embeddings")
-    
+    parser.add_argument("--use_embeddings", type=int, default=0, help="use embeddings")
+    parser.add_argument("--mask_ratio", type=float, default = 0.25, help="mask ratio for pretraining")
+
     parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
     parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
 
