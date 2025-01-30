@@ -23,6 +23,7 @@ class Model(BaseModel):
 
         if pretrained_state_dict is not None:
             self.model.load_state_dict(pretrained_state_dict)  # Fixed loading state dict
+            print("Loaded pretrained state dict")
 
         if self.output_dim > 2:
             self.output_head =     nn.Sequential(nn.SELU(),

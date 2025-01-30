@@ -5,6 +5,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from model import Model, MainDataset, train_model, evaluate_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
+# from pretrain import SSLModel, SSLDataset, train_ssl_model
 from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
 from mambular.base_models import  * 
@@ -44,45 +45,45 @@ def main(args):
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month)
 
-    # x_train_cat_scaled = []
-    # x_val_cat_scaled = []
-    # x_test_cat_scaled = []
+    x_train_cat_scaled = []
+    x_val_cat_scaled = []
+    x_test_cat_scaled = []
 
-    # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
-    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
-    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
-    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
+    for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
+        x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
+        x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
+        x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
     
-    # x_train_cat = x_train_cat_scaled
-    # x_val_cat = x_val_cat_scaled
-    # x_test_cat = x_test_cat_scaled
+    x_train_cat = x_train_cat_scaled
+    x_val_cat = x_val_cat_scaled
+    x_test_cat = x_test_cat_scaled
 
-    # y_train = y_train[:100]
-    # y_val = y_val[:100]
-    # y_test = y_test[:1000]
+    y_train = y_train[:100]
+    y_val = y_val[:100]
+    y_test = y_test[:1000]
 
-    # scaler = StandardScaler()
-    # x_train_num_scaled = []
-    # x_val_num_scaled = []
-    # x_test_num_scaled = []
-    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
-    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
-    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
-
-    scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
+    scaler = StandardScaler()
     x_train_num_scaled = []
     x_val_num_scaled = []
     x_test_num_scaled = []
     for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
-        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
-        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
+        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
+        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
 
-    if use_embeddings == 1:
-        x_train_cat = [f.unsqueeze(1) for f in x_train_cat]
-        x_val_cat = [f.unsqueeze(1) for f in x_val_cat]
-        x_test_cat = [f.unsqueeze(1) for f in x_test_cat]
+    # scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
+    # x_train_num_scaled = []
+    # x_val_num_scaled = []
+    # x_test_num_scaled = []
+    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
+    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
+    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
+    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+
+    # if use_embeddings == 1:
+    #     x_train_cat = [f.unsqueeze(1) for f in x_train_cat]
+    #     x_val_cat = [f.unsqueeze(1) for f in x_val_cat]
+    #     x_test_cat = [f.unsqueeze(1) for f in x_test_cat]
 
     
     config = eval(f"Default{model_to_use}Config()")
@@ -98,13 +99,22 @@ def main(args):
 
 
     if pretrain==1:
+        # pretrain_dataset = SSLDataset(
+        #     x_train_num_scaled, x_train_cat, cat_feature_info
+        # )
+
+        # preval_dataset = SSLDataset(
+        #     x_val_num_scaled, x_val_cat, cat_feature_info
+        # )
+
         pretrain_dataset = PretrainingDataset(
-            x_train_num_scaled, x_train_cat, cat_feature_info, mask_ratio=0.25
+            x_train_num_scaled, x_train_cat
         )
 
         preval_dataset = PretrainingDataset(
-            x_val_num_scaled, x_val_cat, cat_feature_info, mask_ratio=mask_ratio
-        )
+            x_val_num_scaled, x_val_cat
+        )   
+
         pretrain_loader = DataLoader(
             pretrain_dataset,
             batch_size=batch_size,
@@ -134,7 +144,7 @@ def main(args):
         pretrained_model = pretrain_model(
             pretrain_model_inst,
             pretrain_loader,
-            pretrain_loader,
+            preval_loader,
             pretrain_epochs,
             device, 
             lr=pretrain_learning_rate
@@ -178,7 +188,7 @@ def main(args):
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=6)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=5)
     
     trained_model, history = train_model(
         model=model,
@@ -199,7 +209,6 @@ def main(args):
         num_workers=4,
         pin_memory=True
     )
-    print(31)
     test_loss, test_accuracy, test_preds = evaluate_model(
         model=trained_model,
         data_loader=test_loader,
@@ -210,7 +219,6 @@ def main(args):
     print(f"Finished testing period {year}-{month}")         
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
     calculate_multipliers(test_preds.cpu().numpy(), test_columns)
-
 
 if __name__ == "__main__":
     seed = 42  # You can choose any integer as the seed
