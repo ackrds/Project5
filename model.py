@@ -246,8 +246,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
               f'Accuracy: {epoch_acc:.2f}%')
 
         val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
-        if epoch > 25: 
+        
+        if epoch > 20: 
             scheduler.step(val_loss)
+
+        val_history['val_loss'].append(val_loss)
         if epoch > 1:
             val_history['val_delta'].append(val_history['val_loss'][-1] - val_history['val_loss'][-2])
 
