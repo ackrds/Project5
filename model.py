@@ -260,8 +260,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                 break
 
         if epoch % 5 == 0:
-            
-            print(f'Learning Rate: {scheduler.optimizer.param_groups[0]["lr"]:.4f}',
+            print(f'Learning Rate: {scheduler.optimizer.param_groups[0]["lr"]:.8f}',
                   f'Val Loss: {val_loss:.4f}, '
                   f'Val Accuracy: {val_acc:.2f}%')
 
