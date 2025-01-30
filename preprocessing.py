@@ -1,6 +1,6 @@
 import pandas as pd
 import torch
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OrdinalEncoder
 from math import prod
 
 
@@ -43,6 +43,10 @@ def split_df(year, month):
 
                 ]
     cat_features = [
+
+                'Player Name',
+                'Opponent Name',
+
                 'isMasters',
                 'isQualifiers',
                 'isGrandSlam',
@@ -67,9 +71,16 @@ def split_df(year, month):
 
     features = num_features + cat_features
 
-    # df['player_name'] = hash_features(df['player_name'].values)
-    # df['opponent_name'] = hash_features(df['opponent_name'].values)
+    if 'Player Name' in cat_features:
+        all_players_and_opponents = list(set(df['Player Name'].values) | set(df['Opponent Name'].values))
+        all_players_enc = OrdinalEncoder(categories=[all_players_and_opponents])
+        
+        df['Player Name'] = all_players_enc.fit_transform(df['Player Name'].values.reshape(-1, 1))
+        df['Opponent Name'] = all_players_enc.transform(df['Opponent Name'].values.reshape(-1, 1))
 
+        df['Player Name'] = hash_features(df['Player Name'].values)
+        df['Opponent Name'] = hash_features(df['Opponent Name'].values)
+    print(df['Player Name'])
     test_start = f'{year}-{month:02d}-01'
     if year == 2021 :
         val_start = pd.to_datetime(test_start) - pd.DateOffset(months=24) - pd.DateOffset(days=1)
@@ -119,7 +130,7 @@ def split_df(year, month):
     return x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns
 
 
-def hash_features(feature, num_bins=1, num_hashes=1):
+def hash_features(feature, num_bins=1317731, num_hashes=157):
     """
     Feature hash with multiple hash functions to reduce collisions.
     Uses the double hashing technique.
@@ -137,14 +148,15 @@ def hash_features(feature, num_bins=1, num_hashes=1):
     h2 = feature * 2246822519 % num_bins  # Another large prime multiplier
 
     # Combine hashes using double hashing technique
-    combined = h1.clone()
+
+    combined = h1
     for i in range(1, num_hashes):
         combined = (combined + h2) % num_bins
 
-    return combined.long()
+    return combined
 
 
 
 
 if __name__ == '__main__':
-    split_df()
+    split_df(2024, 3)

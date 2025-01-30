@@ -233,7 +233,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             #           f'Acc: {100. * correct / total:.2f}%')
 
         # Calculate epoch metrics
-        scheduler.step()
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
 
@@ -245,10 +244,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
               f'Loss: {epoch_loss:.4f}, '
               f'Accuracy: {epoch_acc:.2f}%')
 
+        val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
+        scheduler.step(val_loss)
         if epoch % 5 == 0:
-            val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
             print(f'Val Loss: {val_loss:.4f}, '
-                  f'Val Accuracy: {val_acc:.2f}%')
+                f'Val Accuracy: {val_acc:.2f}%')
 
 
     return model, history

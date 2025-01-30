@@ -92,7 +92,6 @@ def main(args):
     print(x_train_cat[0].shape)
 
 
-
     if len(args.config_values.keys()) > 0:
         for key, value in args.config_values.items():
             setattr(config, key, value)
@@ -179,7 +178,7 @@ def main(args):
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=gamma)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=10)
     
     trained_model, history = train_model(
         model=model,
@@ -196,7 +195,7 @@ def main(args):
     test_loader = DataLoader(
         test_dataset,
         batch_size=test_batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=4,
         pin_memory=True
     )
