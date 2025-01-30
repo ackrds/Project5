@@ -251,7 +251,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             scheduler.step(val_loss)
 
         val_history['val_loss'].append(val_loss)
-        if epoch > 1:
+        if epoch > 2:
             val_history['val_delta'].append(val_history['val_loss'][-1] - val_history['val_loss'][-2])
 
         if epoch > 40:
