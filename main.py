@@ -88,8 +88,8 @@ def main(args):
     config = eval(f"Default{model_to_use}Config()")
     model_to_use = eval(f"{model_to_use}")
 
-    print(x_train_num_scaled[0].shape)
-    print(x_train_cat[0].shape)
+    # print(x_train_num_scaled[0].shape)
+    # print(x_train_cat[0].shape)
 
 
     if len(args.config_values.keys()) > 0:
@@ -178,7 +178,7 @@ def main(args):
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=10)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=6)
     
     trained_model, history = train_model(
         model=model,

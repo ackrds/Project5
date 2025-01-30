@@ -44,8 +44,8 @@ def split_df(year, month):
                 ]
     cat_features = [
 
-                'Player Name',
-                'Opponent Name',
+                # 'Player Name',
+                # 'Opponent Name',
 
                 'isMasters',
                 'isQualifiers',
@@ -80,7 +80,7 @@ def split_df(year, month):
 
         df['Player Name'] = hash_features(df['Player Name'].values)
         df['Opponent Name'] = hash_features(df['Opponent Name'].values)
-    print(df['Player Name'])
+
     test_start = f'{year}-{month:02d}-01'
     if year == 2021 :
         val_start = pd.to_datetime(test_start) - pd.DateOffset(months=24) - pd.DateOffset(days=1)

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from mambular.base_models import BaseModel
 from torch.utils.data import Dataset, DataLoader
 from torch import nn
@@ -189,7 +190,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     }
     val_history = {
         'val_loss': [],
-        'val_accuracy': [],
+        'val_delta': [],
     }
 
     for epoch in range(num_epochs):
@@ -245,10 +246,21 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
               f'Accuracy: {epoch_acc:.2f}%')
 
         val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
-        scheduler.step(val_loss)
+        if epoch > 25: 
+            scheduler.step(val_loss)
+        if epoch > 1:
+            val_history['val_delta'].append(val_history['val_loss'][-1] - val_history['val_loss'][-2])
+
+        if epoch > 40:
+            if np.mean(val_history['val_delta'][-10:]) < 0.0005:
+                print("Early stopping")
+                break
+
         if epoch % 5 == 0:
-            print(f'Val Loss: {val_loss:.4f}, '
-                f'Val Accuracy: {val_acc:.2f}%')
+            
+            print(f'Learning Rate: {scheduler.optimizer.param_groups[0]["lr"]:.4f}',
+                  f'Val Loss: {val_loss:.4f}, '
+                  f'Val Accuracy: {val_acc:.2f}%')
 
 
     return model, history
