@@ -29,7 +29,7 @@ def main(args):
     ce_weight = args.ce_weight
     mask_ratio = args.mask_ratio
     gamma = args.gamma
-
+    t_max = args.t_max
     # custom output parameters
     output_dim = args.output_dim
 
@@ -191,7 +191,7 @@ def main(args):
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=5)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer,
-    T_max=num_epochs,  # Total number of epochs
+    T_max=t_max,  # Total number of epochs
         eta_min=1e-6  # Minimum learning rate
     ) 
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
@@ -261,6 +261,7 @@ if __name__ == "__main__":
     parser.add_argument("--scaler", type=str, default='standard', help="scaler to use")
     parser.add_argument("--use_embeddings", type=int, default=0, help="use embeddings")
     parser.add_argument("--mask_ratio", type=float, default = 0.25, help="mask ratio for pretraining")
+    parser.add_argument("--t_max", type=int, default=40, help="cosine annealing t_max")
 
     parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
     parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
