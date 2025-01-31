@@ -188,7 +188,20 @@ def main(args):
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=5)
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=5)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+    optimizer,
+    T_max=num_epochs,  # Total number of epochs
+        eta_min=1e-6  # Minimum learning rate
+    ) 
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+    #     optimizer,
+    #     T_0=5,  # Number of epochs per restart
+    #     T_mult=1,  # Multiply T_0 by this number after each restart
+    #     eta_min=1e-6  # Minimum learning rate
+    # )
+
+
     
     trained_model, history = train_model(
         model=model,

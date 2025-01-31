@@ -248,17 +248,18 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
         val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
         
-        if epoch > 20: 
-            scheduler.step(val_loss)
+        # if epoch > 20: 
+        #     scheduler.step(val_loss)
 
         val_history['val_loss'].append(val_loss)
-        if epoch > 2:
-            val_history['val_delta'].append(val_history['val_loss'][-1] - val_history['val_loss'][-2])
+        scheduler.step()
+        # if epoch > 2:
+        #     val_history['val_delta'].append(val_history['val_loss'][-1] - val_history['val_loss'][-2])
 
-        if epoch > 40:
-            if np.mean(val_history['val_delta'][-10:]) < 0.0005:
-                print("Early stopping")
-                break
+        # if epoch > 40:
+        #     if np.mean(val_history['val_delta'][-10:]) < 0.0005:
+        #         print("Early stopping")
+        #         break
 
         if epoch % 5 == 0:
             print(f'Learning Rate: {scheduler.optimizer.param_groups[0]["lr"]:.8f}',
