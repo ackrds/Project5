@@ -30,6 +30,8 @@ def main(args):
     mask_ratio = args.mask_ratio
     gamma = args.gamma
     t_max = args.t_max
+    eta_min = args.eta_min
+    weight_decay = args.weight_decay
     # custom output parameters
     output_dim = args.output_dim
 
@@ -187,12 +189,12 @@ def main(args):
 
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), weight_decay=weight_decay, lr=learning_rate)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=5)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer,
     T_max=t_max,  # Total number of epochs
-        eta_min=1e-6  # Minimum learning rate
+    eta_min=eta_min  # Minimum learning rate
     ) 
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
     #     optimizer,
@@ -250,7 +252,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("main", add_help=True)
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
     parser.add_argument("--pretrain_learning_rate", type=float, default=0.001, help="pretrain learning rate")
-    parser.add_argument("--learning_rate", type=float, default=0.0001, help="learning rate")
+    parser.add_argument("--learning_rate", type=float, default=1e-5, help="learning rate")
     parser.add_argument("--batch_size", type=int, default=512, help="batch size")
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
     parser.add_argument("--model_type", type=str, default='FTTransformer', help="type of model to use")
@@ -262,6 +264,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_embeddings", type=int, default=0, help="use embeddings")
     parser.add_argument("--mask_ratio", type=float, default = 0.25, help="mask ratio for pretraining")
     parser.add_argument("--t_max", type=int, default=40, help="cosine annealing t_max")
+    parser.add_argument("--eta_min", type=float, default=1e-6, help="cosine annealing eta_min")
+    parser.add_argument("--weight_decay", type=float, default=0.01, help="weight decay")
 
     parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
     parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
