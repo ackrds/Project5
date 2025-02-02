@@ -9,6 +9,7 @@ from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
 from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
 from mambular.base_models import  * 
+# from saint.model import SAINT
 from mambular.configs import *
 from utils import calculate_multipliers
 
@@ -32,6 +33,8 @@ def main(args):
     t_max = args.t_max
     eta_min = args.eta_min
     weight_decay = args.weight_decay
+    verbose = args.verbose
+
     # custom output parameters
     output_dim = args.output_dim
 
@@ -47,40 +50,40 @@ def main(args):
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month)
 
-    # x_train_cat_scaled = []
-    # x_val_cat_scaled = []
-    # x_test_cat_scaled = []
+    x_train_cat_scaled = []
+    x_val_cat_scaled = []
+    x_test_cat_scaled = []
 
-    # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
-    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
-    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
-    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
+    for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
+        x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
+        x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
+        x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
     
-    # x_train_cat = x_train_cat_scaled
-    # x_val_cat = x_val_cat_scaled
-    # x_test_cat = x_test_cat_scaled
+    x_train_cat = x_train_cat_scaled
+    x_val_cat = x_val_cat_scaled
+    x_test_cat = x_test_cat_scaled
 
-    # y_train = y_train[:100]
-    # y_val = y_val[:100]
-    # y_test = y_test[:1000]
+    y_train = y_train[:100]
+    y_val = y_val[:100]
+    y_test = y_test[:1000]
 
-    # scaler = StandardScaler()
-    # x_train_num_scaled = []
-    # x_val_num_scaled = []
-    # x_test_num_scaled = []
-    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
-    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
-    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
-
-    scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
+    scaler = StandardScaler()
     x_train_num_scaled = []
     x_val_num_scaled = []
     x_test_num_scaled = []
     for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
-        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
-        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
+        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
+        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
+
+    # scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
+    # x_train_num_scaled = []
+    # x_val_num_scaled = []
+    # x_test_num_scaled = []
+    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
+    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
+    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
+    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
 
     if use_embeddings == 1:
         x_train_cat = [f.unsqueeze(1) for f in x_train_cat]
@@ -142,6 +145,8 @@ def main(args):
             config=config
         ).to(device)
 
+        print(pretrain_model_inst.encoder.embedding_layer.state_dict)
+
         # Pretrain the model
         pretrained_model = pretrain_model(
             pretrain_model_inst,
@@ -152,7 +157,7 @@ def main(args):
             lr=pretrain_learning_rate
         )
 
-        pretrained_state_dict = pretrained_model.encoder.state_dict()
+        pretrained_state_dict = pretrained_model.encoder.embedding_layer.state_dict()
 
     else:
         pretrained_state_dict = None
@@ -166,6 +171,8 @@ def main(args):
         pretrained_state_dict=pretrained_state_dict,
         config=config
     ).to(device)
+
+    print(model.model.state_dict)
 
     train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
     val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
@@ -213,7 +220,8 @@ def main(args):
         optimizer=optimizer,
         num_epochs=num_epochs,
         device=device,
-        scheduler=scheduler
+        scheduler=scheduler,
+        verbose=verbose,
     )
 
     # Test the model
@@ -266,7 +274,7 @@ if __name__ == "__main__":
     parser.add_argument("--t_max", type=int, default=40, help="cosine annealing t_max")
     parser.add_argument("--eta_min", type=float, default=1e-6, help="cosine annealing eta_min")
     parser.add_argument("--weight_decay", type=float, default=0.01, help="weight decay")
-
+    parser.add_argument("--verbose", type=int, default=0, help="verbose")
     parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
     parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
 

@@ -22,17 +22,31 @@ class Model(BaseModel):
         self.output_dim = output_dim
 
         if pretrained_state_dict is not None:
-            self.model.load_state_dict(pretrained_state_dict)  # Fixed loading state dict
+            self.model.embedding_layer.load_state_dict(pretrained_state_dict)  # Fixed loading state dict
             print("Loaded pretrained state dict")
+            # Freeze embedding layer
+            for param in self.model.embedding_layer.parameters():
+                param.requires_grad = False
 
         if self.output_dim > 2:
-            self.output_head =     nn.Sequential(nn.SELU(),
-                                                 nn.Linear(output_dim, 16),
-                                                 nn.SELU(),
-                                                 nn.Linear(16, 2), 
-                                                 nn.Sigmoid())
+            self.output_head = nn.Sequential(
+                nn.BatchNorm1d(output_dim),
+                nn.Dropout(0.2),
+                nn.SELU(),
+                nn.Linear(output_dim, 256),
+                nn.BatchNorm1d(256),
+                nn.Dropout(0.2),
+                nn.SELU(),
+                nn.Linear(256, 2),
+                nn.Sigmoid()
+            )
         else:
-            self.output_head = nn.Sigmoid()
+            self.output_head = nn.Sequential(
+                nn.BatchNorm1d(output_dim),
+                nn.SELU(),
+                nn.Linear(output_dim, 2),
+                nn.Sigmoid()
+            )
 
     def forward(self, num_features, cat_features):
         x = self.model(num_features, cat_features)
@@ -166,7 +180,7 @@ def evaluate_model(model, data_loader, criterion, device):
 
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, scheduler):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, scheduler, verbose=0):
     """
     Train the model using the provided data loader.
 
@@ -242,9 +256,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         history['loss'].append(epoch_loss)
         history['accuracy'].append(epoch_acc)
 
-        print(f'Epoch {epoch} finished. '
-              f'Loss: {epoch_loss:.4f}, '
-              f'Accuracy: {epoch_acc:.2f}%')
+
+        if verbose == 1:
+            print(f'Epoch {epoch} finished. '
+                f'Loss: {epoch_loss:.4f}, '
+                f'Accuracy: {epoch_acc:.2f}%')
 
         val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
         
