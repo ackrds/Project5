@@ -339,10 +339,10 @@ class PretrainingModel(nn.Module):
         self.num_heads = nn.ModuleList([
             nn.Sequential(
                 nn.BatchNorm1d(output_dim),
-                nn.Dropout(0.2),
+                nn.Dropout(0.1),
                 nn.SELU(),
                 nn.Linear(output_dim, int(output_dim/2)),
-                nn.Dropout(0.2),
+                nn.Dropout(0.1),
                 nn.SELU(),
                 nn.Linear(int(output_dim/2), 1)
             ) for _ in num_feature_info
@@ -352,10 +352,10 @@ class PretrainingModel(nn.Module):
         self.cat_heads = nn.ModuleList([
             nn.Sequential(
                 nn.BatchNorm1d(output_dim),
-                nn.Dropout(0.2),
+                nn.Dropout(0.1),
                 nn.SELU(),
                 nn.Linear(output_dim, int(output_dim/2)),
-                nn.Dropout(0.2),
+                nn.Dropout(0.1),
                 nn.SELU(),
                 nn.Linear(int(output_dim/2), info["categories"])
             ) for info in cat_feature_info.values()
