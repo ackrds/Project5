@@ -5,7 +5,6 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from model import Model, MainDataset, train_model, evaluate_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
-# from pretrain import SSLModel, SSLDataset, train_ssl_model
 from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
 from mambular.base_models import  * 
@@ -20,13 +19,17 @@ def main(args):
     batch_size = args.batch_size
     test_batch_size = args.test_batch_size
     pretrain = args.pretrain
+    
     pretrain_epochs = args.pretrain_epochs
     pretrain_learning_rate = args.pretrain_learning_rate
+    pretrain_dropout = args.pretrain_dropout
     learning_rate = args.learning_rate
     model_to_use = args.model_type
     num_epochs = args.num_epochs
     use_embeddings = args.use_embeddings
     sce_weight = args.sce_weight
+    hidden_dim = args.hidden_dim
+    dropout = args.dropout
     ce_weight = args.ce_weight
     # mask_ratio = args.mask_ratio
     # gamma = args.gamma
@@ -146,7 +149,8 @@ def main(args):
             preval_loader,
             pretrain_epochs,
             device, 
-            lr=pretrain_learning_rate
+            lr=pretrain_learning_rate,
+            # dropout=pretrain_dropout
         )
 
         pretrained_state_dict = pretrained_model.encoder.embedding_layer.state_dict()
@@ -161,7 +165,9 @@ def main(args):
         model=model_to_use,
         output_dim=output_dim,
         pretrained_state_dict=pretrained_state_dict,
-        config=config
+        config=config,
+        hidden_dim=hidden_dim,
+        dropout=dropout
     ).to(device)
 
     # print(model.model.state_dict)
@@ -188,7 +194,7 @@ def main(args):
 
     # criterion = torch.nn.CrossEntropyLoss()
     criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
-    optimizer = torch.optim.AdamW(model.parameters(), weight_decay=weight_decay, lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=5)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer,
@@ -261,6 +267,7 @@ if __name__ == "__main__":
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
     parser.add_argument("--pretrain_learning_rate", type=float, default=0.001, help="pretrain learning rate")
     parser.add_argument("--pretrain_batch_size", type=int, default=512, help="pretrain batch size")
+    parser.add_argument("--pretrain_dropout", type=float, default=0.1, help="pretrain dropout")
 
     # Training
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
@@ -269,9 +276,11 @@ if __name__ == "__main__":
 
     # Model
     parser.add_argument("--model_type", type=str, default='FTTransformer', help="type of model to use")
-    parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
+    parser.add_argument("--output_dim", type=int, default=256, help="output dimension")
     parser.add_argument("--use_embeddings", type=int, default=0, help="use embeddings")
-    parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
+    parser.add_argument("--config_values", type=parse_dict, default='{"d_model": 256, "transformer_dim_feedforward": 512, "output_dim":256}', help="config_dict")
+    parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
+    parser.add_argument("--hidden_dim", type=int, default=512, help="hidden dimension")
 
     # Test
     parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")

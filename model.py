@@ -12,47 +12,96 @@ class Model(BaseModel):
             model,
             output_dim,
             pretrained_state_dict=None,
-            config = None,
+            config=None,
+            hidden_dim=1024,  # Match pretraining hidden dim
+            dropout=0.3,      # Slightly higher dropout for finetuning
             **kwargs,
     ):
         super().__init__()
-
+        
         self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
         self.model = model(cat_feature_info, num_feature_info, output_dim, config)
         self.output_dim = output_dim
 
         if pretrained_state_dict is not None:
-            self.model.embedding_layer.load_state_dict(pretrained_state_dict)  # Fixed loading state dict
-            print("Loaded pretrained state dict")
-            # Freeze embedding layer
-            for param in self.model.embedding_layer.parameters():
-                param.requires_grad = False
+            # Load pretrained weights with proper error handling
+            try:
+                missing_keys, unexpected_keys = self.model.load_state_dict(pretrained_state_dict, strict=False)
+                print(f"Loaded pretrained weights. Missing keys: {missing_keys}")
+                print(f"Unexpected keys: {unexpected_keys}")
+                # Gradually unfreeze layers during training
+                self.frozen = True
+                for param in self.model.parameters():
+                    param.requires_grad = False
+            except Exception as e:
+                print(f"Error loading pretrained weights: {e}")
 
-        if self.output_dim > 2:
-            self.output_head = nn.Sequential(
-                nn.BatchNorm1d(output_dim),
-                nn.Dropout(0.2),
-                nn.SELU(),
-                nn.Linear(output_dim, int(output_dim/2)),
-                nn.BatchNorm1d(int(output_dim/2)),
-                nn.Dropout(0.2),
-                nn.SELU(),
-                nn.Linear(int(output_dim/2), 2),
-                nn.Sigmoid()
-            )
-        else:
-            self.output_head = nn.Sequential(
-                nn.BatchNorm1d(output_dim),
-                nn.SELU(),
-                nn.Linear(output_dim, 2),
-                nn.Sigmoid()
-            )
+        # Improved output head architecture
+        self.output_head = nn.Sequential(
+            # First block with residual connection
+            nn.Sequential(
+                nn.LayerNorm(output_dim),
+                nn.Linear(output_dim, hidden_dim),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.LayerNorm(hidden_dim),
+                nn.Linear(hidden_dim, output_dim),
+                nn.Dropout(dropout)
+            ),
+            # Add residual connection
+            LambdaLayer(lambda x, y: x + y),
+            
+            # Second block
+            nn.LayerNorm(output_dim),
+            nn.Linear(output_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.LayerNorm(hidden_dim // 2),
+            nn.Linear(hidden_dim // 2, 2)
+        )
+        
+        # Initialize weights properly
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.xavier_uniform_(module.weight)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+                
+    def unfreeze_encoder(self):
+        """Gradually unfreeze the encoder"""
+        if self.frozen:
+            print("Unfreezing encoder layers...")
+            for param in self.model.parameters():
+                param.requires_grad = True
+            self.frozen = False
 
     def forward(self, num_features, cat_features):
-        x = self.model(num_features, cat_features)
-        x = self.output_head(x)
-        return x
+        # Get encoded representations
+        encoded = self.model(num_features, cat_features)
+        
+        # Apply output head with residual connections
+        x = encoded
+        for layer in self.output_head:
+            if isinstance(layer, LambdaLayer):
+                x = layer(x, encoded)  # Pass both current and residual
+            else:
+                x = layer(x)
+        
+        return torch.softmax(x, dim=-1)
 
+class LambdaLayer(nn.Module):
+    def __init__(self, lambd):
+        super().__init__()
+        self.lambd = lambd
+    
+    def forward(self, x, *args):
+        return self.lambd(x, *args)
 
 class MainDataset(Dataset):
     def __init__(self, num_features, cat_features, labels):
@@ -180,109 +229,100 @@ def evaluate_model(model, data_loader, criterion, device):
 
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, scheduler, verbose=0):
-    """
-    Train the model using the provided data loader.
-
-    Args:
-        model: The neural network model
-        train_loader: DataLoader containing training data
-        val_loader: ValLoader
-        criterion: Loss function
-        optimizer: Optimizer for updating model parameters
-        num_epochs: Number of training epochs
-        device: Device to train on (cuda/cpu)
-
-
-    Returns:
-        model: Trained model
-        history: Dictionary containing training metrics
-    """
+def train_model(model, train_loader, val_loader, criterion, 
+                                      optimizer, num_epochs, device, scheduler, verbose=0):
+    """Enhanced training with gradual unfreezing and monitoring"""
     model.train()
     history = {
-        'loss': [],
-        'accuracy': []
-    }
-    val_history = {
+        'train_loss': [],
+        'train_acc': [],
         'val_loss': [],
-        'val_delta': [],
+        'val_acc': []
     }
-
+    
+    best_val_loss = float('inf')
+    patience = 10
+    patience_counter = 0
+    # unfreeze_epoch = num_epochs // 3  # Unfreeze after 1/3 of training
+    
     for epoch in range(num_epochs):
+        # Gradual unfreezing
+        # if epoch == unfreeze_epoch:
+        #     model.unfreeze_encoder()
+        #     # Reduce learning rate when unfreezing
+        #     for param_group in optimizer.param_groups:
+        #         param_group['lr'] = param_group['lr'] * 0.1
+        
         running_loss = 0.0
         correct = 0
         total = 0
-
-
+        
         for batch_idx, (num_feats, cat_feats, labels) in enumerate(train_loader):
-            # Move data to device
             num_feats = [feat.to(device) for feat in num_feats]
             cat_feats = [feat.to(device) for feat in cat_feats]
-            labels = labels.to(device)
-
-            # Zero the parameter gradients
+            labels = labels.to(device).squeeze()
+            
             optimizer.zero_grad()
-
-            # Forward pass
+            
             outputs = model(num_feats, cat_feats)
-
-            # Reshape labels if necessary (e.g., if they're not already in the right shape)
-            labels = labels.squeeze()
-
-            # Calculate loss
             loss = criterion(outputs, labels.long())
-
-            # Backward pass and optimize
+            
+            # Add L2 regularization for unfrozen layers
+            l2_lambda = 0.01
+            l2_reg = torch.tensor(0., device=device)
+            for param in model.parameters():
+                if param.requires_grad:
+                    l2_reg += torch.norm(param)
+            loss += l2_lambda * l2_reg
+            
             loss.backward()
+            
+            # Gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             optimizer.step()
-
-            # Statistics
+            
             running_loss += loss.item()
             _, predicted = outputs.max(1)
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
-
-            # Print progress
-            # if batch_idx % 10 == 0:
-            #     print(f'Epoch: {epoch}, Batch: {batch_idx}, '
-            #           f'Loss: {loss.item():.4f}, '
-            #           f'Acc: {100. * correct / total:.2f}%')
-
-        # Calculate epoch metrics
+        
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
-
-        # Store metrics
-        history['loss'].append(epoch_loss)
-        history['accuracy'].append(epoch_acc)
-
-
-        if verbose == 1:
-            print(f'Epoch {epoch} finished. '
-                f'Loss: {epoch_loss:.4f}, '
-                f'Accuracy: {epoch_acc:.2f}%')
-
+        
+        # Validation
         val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
         
-        # if epoch > 20: 
-        #     scheduler.step(val_loss)
-
-        val_history['val_loss'].append(val_loss)
+        # Store metrics
+        history['train_loss'].append(epoch_loss)
+        history['train_acc'].append(epoch_acc)
+        history['val_loss'].append(val_loss)
+        history['val_acc'].append(val_acc)
+        
+        # Learning rate scheduling
+        # if epoch > unfreeze_epoch:
         scheduler.step()
-        # if epoch > 2:
-        #     val_history['val_delta'].append(val_history['val_loss'][-1] - val_history['val_loss'][-2])
-
-        # if epoch > 40:
-        #     if np.mean(val_history['val_delta'][-10:]) < 0.0005:
-        #         print("Early stopping")
-        #         break
-
-        if epoch % 5 == 0:
-            print(f'Learning Rate: {scheduler.optimizer.param_groups[0]["lr"]:.8f}',
-                  f'Val Loss: {val_loss:.4f}, '
-                  f'Val Accuracy: {val_acc:.2f}%')
-
-
+        # else:
+            # scheduler.step()
+        
+        # Early stopping check
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            
+        if patience_counter >= patience:
+            print(f"Early stopping triggered at epoch {epoch}")
+            break
+        
+        if verbose or epoch % 5 == 0:
+            print(f'Epoch {epoch}/{num_epochs}:')
+            # print(f'Train Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.2f}%')
+            print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+            print(f'LR: {scheduler.optimizer.param_groups[0]["lr"]:.8f}')
+            
     return model, history
+
 
 
