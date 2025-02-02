@@ -145,7 +145,7 @@ def main(args):
             config=config
         ).to(device)
 
-        print(pretrain_model_inst.encoder.embedding_layer.state_dict)
+        # print(pretrain_model_inst.encoder.embedding_layer.state_dict)
 
         # Pretrain the model
         pretrained_model = pretrain_model(
@@ -172,7 +172,7 @@ def main(args):
         config=config
     ).to(device)
 
-    print(model.model.state_dict)
+    # print(model.model.state_dict)
 
     train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
     val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
