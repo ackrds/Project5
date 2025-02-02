@@ -33,11 +33,11 @@ class Model(BaseModel):
                 nn.BatchNorm1d(output_dim),
                 nn.Dropout(0.2),
                 nn.SELU(),
-                nn.Linear(output_dim, 256),
-                nn.BatchNorm1d(256),
+                nn.Linear(output_dim, output_dim/2),
+                nn.BatchNorm1d(output_dim/2),
                 nn.Dropout(0.2),
                 nn.SELU(),
-                nn.Linear(256, 2),
+                nn.Linear(output_dim/2, 2),
                 nn.Sigmoid()
             )
         else:
