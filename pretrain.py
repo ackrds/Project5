@@ -341,11 +341,10 @@ class PretrainingModel(nn.Module):
                 nn.BatchNorm1d(output_dim),
                 nn.Dropout(0.2),
                 nn.SELU(),
-                nn.Linear(output_dim, output_dim/2),
-                nn.BatchNorm1d(output_dim/2),
+                nn.Linear(output_dim, int(output_dim/2)),
                 nn.Dropout(0.2),
                 nn.SELU(),
-                nn.Linear(output_dim/2, 1),
+                nn.Linear(int(output_dim/2), 1)
             ) for _ in num_feature_info
         ])
         
@@ -355,11 +354,10 @@ class PretrainingModel(nn.Module):
                 nn.BatchNorm1d(output_dim),
                 nn.Dropout(0.2),
                 nn.SELU(),
-                nn.Linear(output_dim, output_dim/2),
-                nn.BatchNorm1d(output_dim/2),
+                nn.Linear(output_dim, int(output_dim/2)),
                 nn.Dropout(0.2),
                 nn.SELU(),
-                nn.Linear(output_dim/2, info["categories"])
+                nn.Linear(int(output_dim/2), info["categories"])
             ) for info in cat_feature_info.values()
         ])
 
@@ -497,7 +495,6 @@ class PretrainingDataset(Dataset):
 
         num_feats = [f.float() if not f.is_floating_point() else f for f in num_feats]
         cat_feats = [f.long() if not f.dtype == torch.long else f for f in cat_feats]
-
         return num_feats, cat_feats, idx
 
 
