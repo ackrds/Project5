@@ -9,7 +9,7 @@ from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
 from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
 from mambular.base_models import  * 
-# from saint.model import SAINT
+from saint.model import SAINT
 from mambular.configs import *
 from utils import calculate_multipliers
 
@@ -28,8 +28,8 @@ def main(args):
     use_embeddings = args.use_embeddings
     sce_weight = args.sce_weight
     ce_weight = args.ce_weight
-    mask_ratio = args.mask_ratio
-    gamma = args.gamma
+    # mask_ratio = args.mask_ratio
+    # gamma = args.gamma
     t_max = args.t_max
     eta_min = args.eta_min
     weight_decay = args.weight_decay
@@ -50,40 +50,40 @@ def main(args):
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month)
 
-    # x_train_cat_scaled = []
-    # x_val_cat_scaled = []
-    # x_test_cat_scaled = []
+    x_train_cat_scaled = []
+    x_val_cat_scaled = []
+    x_test_cat_scaled = []
 
-    # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
-    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
-    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
-    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
+    for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
+        x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
+        x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
+        x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
     
-    # x_train_cat = x_train_cat_scaled
-    # x_val_cat = x_val_cat_scaled
-    # x_test_cat = x_test_cat_scaled
+    x_train_cat = x_train_cat_scaled
+    x_val_cat = x_val_cat_scaled
+    x_test_cat = x_test_cat_scaled
 
-    # y_train = y_train[:100]
-    # y_val = y_val[:100]
-    # y_test = y_test[:1000]
+    y_train = y_train[:100]
+    y_val = y_val[:100]
+    y_test = y_test[:1000]
 
-    # scaler = StandardScaler()
-    # x_train_num_scaled = []
-    # x_val_num_scaled = []
-    # x_test_num_scaled = []
-    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
-    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
-    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
-
-    scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
+    scaler = StandardScaler()
     x_train_num_scaled = []
     x_val_num_scaled = []
     x_test_num_scaled = []
     for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
-        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
-        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
+        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
+        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
+
+    # scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
+    # x_train_num_scaled = []
+    # x_val_num_scaled = []
+    # x_test_num_scaled = []
+    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
+    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
+    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
+    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
 
     if use_embeddings == 1:
         x_train_cat = [f.unsqueeze(1) for f in x_train_cat]
@@ -104,13 +104,6 @@ def main(args):
 
 
     if pretrain==1:
-        # pretrain_dataset = SSLDataset(
-        #     x_train_num_scaled, x_train_cat, cat_feature_info
-        # )
-
-        # preval_dataset = SSLDataset(
-        #     x_val_num_scaled, x_val_cat, cat_feature_info
-        # )
 
         pretrain_dataset = PretrainingDataset(
             x_train_num_scaled, x_train_cat
@@ -147,7 +140,6 @@ def main(args):
 
         # print(pretrain_model_inst.encoder.embedding_layer.state_dict)
 
-        # Pretrain the model
         pretrained_model = pretrain_model(
             pretrain_model_inst,
             pretrain_loader,
@@ -172,7 +164,7 @@ def main(args):
         config=config
     ).to(device)
 
-    # print(model.model.state_dict)
+    print(model.model.state_dict)
 
     train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
     val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
@@ -258,29 +250,43 @@ if __name__ == "__main__":
 
 
     parser = argparse.ArgumentParser("main", add_help=True)
+    
+    # Data
+    parser.add_argument("--scaler", type=str, default='standard', help="scaler to use")
+    parser.add_argument("--year", type=int, default=2024, help="year")
+    parser.add_argument("--month", type=int, default=1, help="month")
+
+    # Pretraining
+    parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
     parser.add_argument("--pretrain_learning_rate", type=float, default=0.001, help="pretrain learning rate")
+    parser.add_argument("--pretrain_batch_size", type=int, default=512, help="pretrain batch size")
+
+    # Training
+    parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="learning rate")
     parser.add_argument("--batch_size", type=int, default=512, help="batch size")
-    parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
+
+    # Model
     parser.add_argument("--model_type", type=str, default='FTTransformer', help="type of model to use")
-    parser.add_argument("--pretrain", type=int, default=0, help="pretrain the model")
+    parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
+    parser.add_argument("--use_embeddings", type=int, default=0, help="use embeddings")
+    parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
+
+    # Test
+    parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
+
+    # Loss
     parser.add_argument("--sce_weight", type=float, default=1, help="sce weight")
     parser.add_argument("--ce_weight", type=float, default=0.5, help="ce weight")
-    parser.add_argument("--output_dim", type=int, default=32, help="output dimension")
-    parser.add_argument("--scaler", type=str, default='standard', help="scaler to use")
-    parser.add_argument("--use_embeddings", type=int, default=0, help="use embeddings")
-    parser.add_argument("--mask_ratio", type=float, default = 0.25, help="mask ratio for pretraining")
+    
+    # Scheduler
     parser.add_argument("--t_max", type=int, default=40, help="cosine annealing t_max")
     parser.add_argument("--eta_min", type=float, default=1e-6, help="cosine annealing eta_min")
     parser.add_argument("--weight_decay", type=float, default=0.01, help="weight decay")
-    parser.add_argument("--verbose", type=int, default=0, help="verbose")
-    parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
-    parser.add_argument("--config_values", type=parse_dict, default="{}", help="config_dict")
 
-    parser.add_argument("--year", type=int, default=2024, help="year")
-    parser.add_argument("--month", type=int, default=1, help="month")
-    parser.add_argument("--gamma", type=float, default=0.5, help="gamma")
+    parser.add_argument("--verbose", type=int, default=0, help="verbose")
+
     args = parser.parse_args()
     main(args)
 

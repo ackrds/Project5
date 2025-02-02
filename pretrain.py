@@ -338,19 +338,28 @@ class PretrainingModel(nn.Module):
         # Prediction heads for numerical features
         self.num_heads = nn.ModuleList([
             nn.Sequential(
+                nn.BatchNorm1d(output_dim),
+                nn.Dropout(0.2),
                 nn.SELU(),
-                nn.Linear(output_dim, 16),
+                nn.Linear(output_dim, output_dim/2),
+                nn.BatchNorm1d(output_dim/2),
+                nn.Dropout(0.2),
                 nn.SELU(),
-                nn.Linear(16, 1)
+                nn.Linear(output_dim/2, 1),
             ) for _ in num_feature_info
         ])
         
         # Prediction heads for categorical features
         self.cat_heads = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(output_dim, 16),
-                nn.ReLU(),
-                nn.Linear(16, info["categories"])
+                nn.BatchNorm1d(output_dim),
+                nn.Dropout(0.2),
+                nn.SELU(),
+                nn.Linear(output_dim, output_dim/2),
+                nn.BatchNorm1d(output_dim/2),
+                nn.Dropout(0.2),
+                nn.SELU(),
+                nn.Linear(output_dim/2, info["categories"])
             ) for info in cat_feature_info.values()
         ])
 
