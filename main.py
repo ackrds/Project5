@@ -11,11 +11,13 @@ from mambular.base_models import  *
 from saint.model import SAINT
 from mambular.configs import *
 from utils import calculate_multipliers
-from models.ResFTTransformer import ResidualAttentionTransformer as ResFTTransformer
-from models.config import DefaultFTTransformerConfig as DefaultResFTTransformerConfig
+from models.CustomFTTransformer import FTTransformer as CustomFTTransformer
+# from models.config import DefaultFTTransformerConfig as DefaultCustomFTTransformerConfig
 
 def main(args):
 
+    # DefaultCustomFTTransformerConfig = {}
+    
     # training parameters
     batch_size = args.batch_size
     test_batch_size = args.test_batch_size
@@ -43,6 +45,7 @@ def main(args):
     year = args.year
     month = args.month
     scaler = args.scaler
+
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -89,9 +92,12 @@ def main(args):
         x_val_cat = [f.unsqueeze(1) for f in x_val_cat]
         x_test_cat = [f.unsqueeze(1) for f in x_test_cat]
 
-    
-    config = eval(f"Default{model_to_use}Config()")
+    if model_to_use == "CustomFTTransformer":
+        config = DefaultFTTransformerConfig()
+    else:
+        config = eval(f"Default{model_to_use}Config()")
     model_to_use = eval(f"{model_to_use}")
+    
 
     # print(x_train_num_scaled[0].shape)
     # print(x_train_cat[0].shape)
@@ -268,7 +274,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_type", type=str, default='FTTransformer', help="type of model to use")
     parser.add_argument("--output_dim", type=int, default=256, help="output dimension")
     parser.add_argument("--use_embeddings", type=int, default=0, help="use embeddings")
-    parser.add_argument("--config_values", type=parse_dict, default='{"d_model": 256, "transformer_dim_feedforward": 512, "output_dim":256}', help="config_dict")
+    parser.add_argument("--config_values", type=parse_dict, default='{"d_model": 256, "transformer_dim_feedforward": 1024, "output_dim":256}', help="config_dict")
     parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
     parser.add_argument("--hidden_dim", type=int, default=512, help="hidden dimension")
     parser.add_argument("--patience", type=int, default=100, help="patience")
