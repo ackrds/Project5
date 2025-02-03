@@ -50,9 +50,6 @@ class Model(BaseModel):
             )
         else:
             self.output_head = nn.Sequential(
-                nn.BatchNorm1d(output_dim),
-                nn.SELU(),
-                nn.Linear(output_dim, 2),
                 nn.Sigmoid()
             )
 
