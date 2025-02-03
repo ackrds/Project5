@@ -211,7 +211,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     }
     val_history = {
         'val_loss': [],
-        'val_delta': [],
     }
     best_val_loss = float('inf')
     patience_counter = 0
@@ -262,11 +261,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
         val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
 
-        # Store metrics
-        history['train_loss'].append(epoch_loss)
-        history['train_acc'].append(epoch_acc)
-        history['val_loss'].append(val_loss)
-        history['val_acc'].append(val_acc)
         
         # Learning rate scheduling
         # if epoch > unfreeze_epoch:
