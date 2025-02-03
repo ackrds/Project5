@@ -4,6 +4,12 @@ from mambular.base_models import BaseModel
 from torch.utils.data import Dataset, DataLoader
 from torch import nn
 
+import torch
+import numpy as np
+from mambular.base_models import BaseModel
+from torch.utils.data import Dataset, DataLoader
+from torch import nn
+
 class Model(BaseModel):
     def __init__(
             self,
@@ -14,7 +20,7 @@ class Model(BaseModel):
             pretrained_state_dict=None,
             config = None,
             hidden_dim=512,
-            dropout=0.1,
+            dropout=0.2,
             **kwargs,
     ):
         super().__init__()
@@ -31,33 +37,31 @@ class Model(BaseModel):
                 param.requires_grad = False
 
         if self.output_dim > 2:
-            self.model.tabular_head = nn.Sequential(
-                nn.LayerNorm(output_dim),
+            self.output_head = nn.Sequential(
+                nn.BatchNorm1d(output_dim),
                 nn.Dropout(dropout),
-                nn.GELU(),
+                nn.SELU(),
                 nn.Linear(output_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
                 nn.Dropout(dropout),
-                nn.GELU(),
-                nn.Linear(hidden_dim, int(hidden_dim/2)),
-                nn.LayerNorm(int(hidden_dim/2)),
-                nn.Dropout(dropout),
-                nn.GELU(),
-                nn.Linear(int(hidden_dim/2), 2),
+                nn.SELU(),
+                nn.Linear(hidden_dim, 2),
                 nn.Sigmoid()
             )
         else:
-            self.model.tabular_head = nn.Sequential(
-                nn.LayerNorm(output_dim),
-                nn.GELU(),
+            self.output_head = nn.Sequential(
+                nn.BatchNorm1d(output_dim),
+                nn.SELU(),
                 nn.Linear(output_dim, 2),
                 nn.Sigmoid()
             )
 
     def forward(self, num_features, cat_features):
         x = self.model(num_features, cat_features)
-        # x = self.output_head(x)
+        x = self.output_head(x)
         return x
+
+
 
 
 class MainDataset(Dataset):
