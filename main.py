@@ -31,17 +31,12 @@ def main(args):
     hidden_dim = args.hidden_dim
     dropout = args.dropout
     ce_weight = args.ce_weight
-    # mask_ratio = args.mask_ratio
-    # gamma = args.gamma
     t_max = args.t_max
     eta_min = args.eta_min
     weight_decay = args.weight_decay
     verbose = args.verbose
-
-    # custom output parameters
+    patience = args.patience
     output_dim = args.output_dim
-
-    # model parameters
 
     # data parameters
     year = args.year
@@ -53,40 +48,40 @@ def main(args):
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month)
 
-    # x_train_cat_scaled = []
-    # x_val_cat_scaled = []
-    # x_test_cat_scaled = []
+    x_train_cat_scaled = []
+    x_val_cat_scaled = []
+    x_test_cat_scaled = []
 
-    # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
-    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
-    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
-    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
+    for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
+        x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
+        x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
+        x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
     
-    # x_train_cat = x_train_cat_scaled
-    # x_val_cat = x_val_cat_scaled
-    # x_test_cat = x_test_cat_scaled
+    x_train_cat = x_train_cat_scaled
+    x_val_cat = x_val_cat_scaled
+    x_test_cat = x_test_cat_scaled
 
-    # y_train = y_train[:100]
-    # y_val = y_val[:100]
-    # y_test = y_test[:1000]
+    y_train = y_train[:100]
+    y_val = y_val[:100]
+    y_test = y_test[:1000]
 
-    # scaler = StandardScaler()
-    # x_train_num_scaled = []
-    # x_val_num_scaled = []
-    # x_test_num_scaled = []
-    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
-    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
-    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
-
-    scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
+    scaler = StandardScaler()
     x_train_num_scaled = []
     x_val_num_scaled = []
     x_test_num_scaled = []
     for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
-        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
-        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
+        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
+        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
+
+    # scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
+    # x_train_num_scaled = []
+    # x_val_num_scaled = []
+    # x_test_num_scaled = []
+    # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
+    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
+    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
+    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
 
     if use_embeddings == 1:
         x_train_cat = [f.unsqueeze(1) for f in x_train_cat]
@@ -170,7 +165,7 @@ def main(args):
         dropout=dropout
     ).to(device)
 
-    # print(model.model.state_dict)
+    print(model.model.state_dict)
 
     train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
     val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
@@ -220,6 +215,7 @@ def main(args):
         device=device,
         scheduler=scheduler,
         verbose=verbose,
+        patience=patience
     )
 
     # Test the model
@@ -281,7 +277,7 @@ if __name__ == "__main__":
     parser.add_argument("--config_values", type=parse_dict, default='{"d_model": 256, "transformer_dim_feedforward": 512, "output_dim":256}', help="config_dict")
     parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
     parser.add_argument("--hidden_dim", type=int, default=512, help="hidden dimension")
-
+    parser.add_argument("--patience", type=int, default=100, help="patience")
     # Test
     parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
 

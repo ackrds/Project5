@@ -13,6 +13,7 @@ class Model(BaseModel):
             output_dim,
             pretrained_state_dict=None,
             config = None,
+            hidden_dim=512,
             dropout=0.1,
             **kwargs,
     ):
@@ -30,28 +31,32 @@ class Model(BaseModel):
                 param.requires_grad = False
 
         if self.output_dim > 2:
-            self.output_head = nn.Sequential(
-                nn.BatchNorm1d(output_dim),
+            self.model.tabular_head = nn.Sequential(
+                nn.LayerNorm(output_dim),
                 nn.Dropout(dropout),
-                nn.SELU(),
-                nn.Linear(output_dim, int(output_dim/2)),
-                nn.BatchNorm1d(int(output_dim/2)),
+                nn.GELU(),
+                nn.Linear(output_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 nn.Dropout(dropout),
-                nn.SELU(),
-                nn.Linear(int(output_dim/2), 2),
+                nn.GELU(),
+                nn.Linear(hidden_dim, int(hidden_dim/2)),
+                nn.LayerNorm(int(hidden_dim/2)),
+                nn.Dropout(dropout),
+                nn.GELU(),
+                nn.Linear(int(hidden_dim/2), 2),
                 nn.Sigmoid()
             )
         else:
-            self.output_head = nn.Sequential(
-                nn.BatchNorm1d(output_dim),
-                nn.SELU(),
+            self.model.tabular_head = nn.Sequential(
+                nn.LayerNorm(output_dim),
+                nn.GELU(),
                 nn.Linear(output_dim, 2),
                 nn.Sigmoid()
             )
 
     def forward(self, num_features, cat_features):
         x = self.model(num_features, cat_features)
-        x = self.output_head(x)
+        # x = self.output_head(x)
         return x
 
 
@@ -181,7 +186,7 @@ def evaluate_model(model, data_loader, criterion, device):
 
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, scheduler, verbose=0):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, scheduler, verbose=0, patience=100):
     """
     Train the model using the provided data loader.
 
@@ -208,6 +213,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         'val_loss': [],
         'val_delta': [],
     }
+    best_val_loss = float('inf')
+    patience_counter = 0
 
     for epoch in range(num_epochs):
         running_loss = 0.0
@@ -253,35 +260,38 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
 
-        # Store metrics
-        history['loss'].append(epoch_loss)
-        history['accuracy'].append(epoch_acc)
-
-
-        if verbose == 1:
-            print(f'Epoch {epoch} finished. '
-                f'Loss: {epoch_loss:.4f}, '
-                f'Accuracy: {epoch_acc:.2f}%')
-
         val_loss, val_acc, _ = evaluate_model(model, val_loader, criterion, device)
+
+        # Store metrics
+        history['train_loss'].append(epoch_loss)
+        history['train_acc'].append(epoch_acc)
+        history['val_loss'].append(val_loss)
+        history['val_acc'].append(val_acc)
         
-        # if epoch > 20: 
-        #     scheduler.step(val_loss)
-
-        val_history['val_loss'].append(val_loss)
+        # Learning rate scheduling
+        # if epoch > unfreeze_epoch:
         scheduler.step()
-        # if epoch > 2:
-        #     val_history['val_delta'].append(val_history['val_loss'][-1] - val_history['val_loss'][-2])
-
-        # if epoch > 40:
-        #     if np.mean(val_history['val_delta'][-10:]) < 0.0005:
-        #         print("Early stopping")
-        #         break
-
-        if epoch % 5 == 0:
-            print(f'Learning Rate: {scheduler.optimizer.param_groups[0]["lr"]:.8f}',
-                  f'Val Loss: {val_loss:.4f}, '
-                  f'Val Accuracy: {val_acc:.2f}%')
+        # else:
+            # scheduler.step()
+        
+        # Early stopping check
+        if num_epochs > 20:
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                
+            if patience_counter >= patience:
+                print(f"Early stopping triggered at epoch {epoch}")
+                break
+        
+        if verbose or epoch % 5 == 0:
+            print(f'Epoch {epoch}/{num_epochs}:')
+            # print(f'Train Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.2f}%')
+            print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+            print(f'LR: {scheduler.optimizer.param_groups[0]["lr"]:.8f}')
+            
 
 
     return model, history

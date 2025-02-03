@@ -44,8 +44,8 @@ def split_df(year, month):
                 ]
     cat_features = [
 
-                'Player Name',
-                'Opponent Name',
+                # 'Player Name',
+                # 'Opponent Name',
 
                 'isMasters',
                 'isQualifiers',
