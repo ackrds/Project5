@@ -44,8 +44,8 @@ def split_df(year, month):
                 ]
     cat_features = [
 
-                # 'Player Name',
-                # 'Opponent Name',
+                'Player Name',
+                'Opponent Name',
 
                 'isMasters',
                 'isQualifiers',
@@ -66,10 +66,7 @@ def split_df(year, month):
                     'tourney_id', 
                     'tourney_date'
                     ]
-    cat_feature_info = {key:{'dimension':1, 'categories':len(list(set(df[key])))} for key in cat_features}
-    num_feature_info = {key:{'dimension':1, 'categories':None} for key in num_features}
 
-    features = num_features + cat_features
 
     if 'Player Name' in cat_features:
         all_players_and_opponents = list(set(df['Player Name'].values) | set(df['Opponent Name'].values))
@@ -80,6 +77,11 @@ def split_df(year, month):
 
         df['Player Name'] = hash_features(df['Player Name'].values)
         df['Opponent Name'] = hash_features(df['Opponent Name'].values)
+    
+    features = num_features + cat_features
+    cat_feature_info = {key:{'dimension':1, 'categories':len(list(set(df[key]))) if 'Name' not in key else 1317731} for key in cat_features}
+    num_feature_info = {key:{'dimension':1, 'categories':None} for key in num_features}
+
 
     test_start = f'{year}-{month:02d}-01'
     if year == 2021 :

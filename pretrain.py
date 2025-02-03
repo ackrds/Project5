@@ -689,13 +689,7 @@ class PretrainingModel(nn.Module):
         # Use sharpened similarity targets
         labels = torch.arange(batch_size, device=sim_matrix.device)
         contrastive_loss = F.cross_entropy(sim_matrix, labels)
-        
                 
-        
-        # Use sharpened similarity targets
-        labels = torch.arange(batch_size, device=sim_matrix.device)
-        contrastive_loss = F.cross_entropy(sim_matrix, labels)
-        
         # Weight the losses
         total_loss = (
             0.5 * num_recon_loss + 
@@ -718,14 +712,14 @@ def pretrain_model(model, train_loader, val_loader, num_epochs, device,
     # Cosine learning rate schedule with warmup
     def get_lr_scale(epoch):
         if epoch < warmup_epochs:
-            return epoch / warmup_epochs
+            return 1
         return 0.5 * (1 + math.cos(math.pi * (epoch - warmup_epochs) / (num_epochs - warmup_epochs)))
     
     for epoch in range(num_epochs):
         # Update learning rate
         lr_scale = get_lr_scale(epoch)
         for param_group in optimizer.param_groups:
-            param_group['lr'] = lr * lr_scale
+            optimizer.param_group['lr'] = lr * lr_scale
         
         model.train()
         total_loss = 0

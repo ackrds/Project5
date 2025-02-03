@@ -291,7 +291,7 @@ if __name__ == "__main__":
     
     # Scheduler
     parser.add_argument("--t_max", type=int, default=40, help="cosine annealing t_max")
-    parser.add_argument("--eta_min", type=float, default=1e-6, help="cosine annealing eta_min")
+    parser.add_argument("--eta_min", type=float, default=1e-7, help="cosine annealing eta_min")
     parser.add_argument("--weight_decay", type=float, default=0.01, help="weight decay")
 
     parser.add_argument("--verbose", type=int, default=0, help="verbose")
