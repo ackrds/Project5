@@ -1,14 +1,11 @@
+from tqdm import tqdm
 import torch
 import numpy as np
 from mambular.base_models import BaseModel
 from torch.utils.data import Dataset, DataLoader
 from torch import nn
 
-import torch
-import numpy as np
-from mambular.base_models import BaseModel
-from torch.utils.data import Dataset, DataLoader
-from torch import nn
+
 
 class Model(BaseModel):
     def __init__(
@@ -28,6 +25,7 @@ class Model(BaseModel):
         self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
         self.model = model(cat_feature_info, num_feature_info, output_dim, config)
         self.output_dim = output_dim
+
 
         if pretrained_state_dict is not None:
             self.model.embedding_layer.load_state_dict(pretrained_state_dict)  # Fixed loading state dict
@@ -221,8 +219,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         correct = 0
         total = 0
 
-
-        for batch_idx, (num_feats, cat_feats, labels) in enumerate(train_loader):
+        for batch_idx, (num_feats, cat_feats, labels) in enumerate(tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}', leave=False)):
             # Move data to device
             num_feats = [feat.to(device) for feat in num_feats]
             cat_feats = [feat.to(device) for feat in cat_feats]
@@ -255,7 +252,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             #     print(f'Epoch: {epoch}, Batch: {batch_idx}, '
             #           f'Loss: {loss.item():.4f}, '
             #           f'Acc: {100. * correct / total:.2f}%')
-
         # Calculate epoch metrics
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total

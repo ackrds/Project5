@@ -12,6 +12,7 @@ from saint.model import SAINT
 from mambular.configs import *
 from utils import calculate_multipliers
 from models.CustomFTTransformer import FTTransformer as CustomFTTransformer
+from models.NODE import NODE 
 # from models.config import DefaultFTTransformerConfig as DefaultCustomFTTransformerConfig
 
 def main(args):
