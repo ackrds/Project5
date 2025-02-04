@@ -7,12 +7,13 @@ from model import Model, MainDataset, train_model, evaluate_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
 from loss_utils import HybridLoss
 from preprocessing import hash_features, split_df
-from mambular.base_models import  * 
 from saint.model import SAINT
 from mambular.configs import *
 from utils import calculate_multipliers
-from models.CustomFTTransformer import DenseFTTransformer  
+from models.CustomFTTransformer import CustomFTTransformer  
 from models.NODE import NODE 
+from mambular.base_models import  * 
+
 # from models.config import DefaultFTTransformerConfig as DefaultCustomFTTransformerConfig
 
 def main(args):
@@ -41,6 +42,7 @@ def main(args):
     weight_decay = args.weight_decay
     verbose = args.verbose
     patience = args.patience
+    l2_lambda = args.l2_lambda
     output_dim = args.output_dim
 
     # data parameters
@@ -94,7 +96,7 @@ def main(args):
         x_val_cat = [f.unsqueeze(1) for f in x_val_cat]
         x_test_cat = [f.unsqueeze(1) for f in x_test_cat]
 
-    if model_to_use == "DenseFTTransformer":
+    if model_to_use == "CustomFTTransformer":
         config = DefaultFTTransformerConfig()
     else:
         config = eval(f"Default{model_to_use}Config()")
@@ -174,7 +176,7 @@ def main(args):
         dropout=dropout
     ).to(device)
 
-    # print(model.model.state_dict)
+    print(model.model.state_dict)
 
     train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
     val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
@@ -217,7 +219,8 @@ def main(args):
         device=device,
         scheduler=scheduler,
         verbose=verbose,
-        patience=patience
+        patience=patience,
+        l2_lambda=l2_lambda
     )
 
     # Test the model
@@ -276,7 +279,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_type", type=str, default='FTTransformer', help="type of model to use")
     parser.add_argument("--output_dim", type=int, default=256, help="output dimension")
     parser.add_argument("--use_embeddings", type=int, default=0, help="use embeddings")
-    parser.add_argument("--config_values", type=parse_dict, default='{"d_model": 256, "transformer_dim_feedforward": 1024, "output_dim":256}', help="config_dict")
+    parser.add_argument("--config_values", type=parse_dict, default='{"d_model": 256, "transformer_dim_feedforward": 1024, "output_dim":256, "ff_dropout":0.2, "attn_dropout":0.2}', help="config_dict")
     parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
     parser.add_argument("--hidden_dim", type=int, default=512, help="hidden dimension")
     parser.add_argument("--patience", type=int, default=100, help="patience")
@@ -287,6 +290,7 @@ if __name__ == "__main__":
     parser.add_argument("--sce_weight", type=float, default=1, help="sce weight")
     parser.add_argument("--ce_weight", type=float, default=0.5, help="ce weight")
     parser.add_argument("--n_bins", type=int, default=30, help="number of bins")
+    parser.add_argument("--l2_lambda", type=float, default=0.01, help="l2 lambda")
     
     # Scheduler
     parser.add_argument("--t_max", type=int, default=40, help="cosine annealing t_max")

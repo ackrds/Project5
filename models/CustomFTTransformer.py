@@ -31,7 +31,7 @@ class GLU(nn.Module):
         return x[..., :split_dim] * torch.sigmoid(x[..., split_dim:])
 
 
-class DenseTransformerEncoderLayer(nn.Module):
+class CustomTransformerEncoderLayer(nn.Module):
     def __init__(self, n_features, config):
         """DenseTransformerEncoderLayer combines dense connectivity with transformer architecture.
         Each layer receives concatenated features from all previous layers.
@@ -44,24 +44,19 @@ class DenseTransformerEncoderLayer(nn.Module):
         self.d_model = getattr(config, "d_model", 128)
         n_layers = getattr(config, "n_layers", 6)
         n_heads = getattr(config, "n_heads", 8)
-        attn_dropout = getattr(config, "attn_dropout", 0.1)
-        ff_dropout = getattr(config, "ff_dropout", 0.1)
+        attn_dropout = getattr(config, "attn_dropout", 0.2)
+        ff_dropout = getattr(config, "ff_dropout", 0.2)
         activation = ReGLU()
         expansion_factor = 2 if isinstance(activation, (ReGLU, GLU)) else 4
-
+        self.transformer_dim_feedforward = getattr(config, "transformer_dim_feedforward", 1024)
         self.layers = nn.ModuleList([])
+        print(config.ff_dropout)
         
         for i in range(n_layers):
             # Calculate input dimension for current layer (d_model * (i+1))
             # because it receives concatenated features from all previous layers
-            curr_input_dim = self.d_model * (i + 1)
             
             self.layers.append(nn.ModuleList([
-                # Transition layer to handle concatenated input
-                nn.Linear(curr_input_dim, self.d_model),
-                
-                # Attention block
-                nn.LayerNorm(self.d_model),
                 nn.MultiheadAttention(
                     embed_dim=self.d_model,
                     num_heads=n_heads,
@@ -69,15 +64,16 @@ class DenseTransformerEncoderLayer(nn.Module):
                     batch_first=True
                 ),
                 nn.Dropout(ff_dropout),
-                
-                # FFN block
                 nn.LayerNorm(self.d_model),
+                
                 nn.Sequential(
-                    nn.Linear(self.d_model, self.d_model * expansion_factor),
+                    nn.Linear(self.d_model, self.transformer_dim_feedforward*2),
                     activation,
-                    nn.Dropout(ff_dropout),
-                    nn.Linear(self.d_model * (expansion_factor // 2), self.d_model)
-                )
+                    nn.Linear(self.transformer_dim_feedforward, self.d_model)
+                ),
+                nn.LayerNorm(self.d_model),
+                nn.Dropout(ff_dropout),
+
             ]))
 
     def forward(self, x):
@@ -87,34 +83,17 @@ class DenseTransformerEncoderLayer(nn.Module):
         Returns:
             x: Transformed embeddings (batch_size, seq_len, d_model)
         """
-        layer_outputs = [x]  # Store all layer outputs for dense connectivity
         
-        for transition, norm1, attn, dropout, norm2, ffn in self.layers:
-            # Concatenate all previous outputs
-            dense_input = torch.cat(layer_outputs, dim=-1)
-            
-            # Transition layer to handle dense input
-            x = transition(dense_input)
-            
-            # Multi-head attention block
-            residual = x
+        for  attn, norm1, dropout1,ffn, norm2, dropout2 in self.layers:
+            x_attn = attn(x, x, x)[0]
+            x = x + dropout1(x_attn)
             x = norm1(x)
-            x = attn(x, x, x)[0]
-            x = dropout(x)
-            x = x + residual
-            
-            # Feed-forward block
-            residual = x
+            x_ffn = ffn(x)
+            x = x + dropout2(x_ffn)
             x = norm2(x)
-            x = ffn(x)
-            x = x + residual
-            
-            # Store current layer output for dense connectivity
-            layer_outputs.append(x)
-            
         return x
     
-class DenseFTTransformer(BaseModel):
+class CustomFTTransformer(BaseModel):
     """A Feature Transformer model for tabular data with categorical and numerical features, using embedding,
     transformer encoding, and pooling to produce final predictions.
 
@@ -182,7 +161,7 @@ class DenseFTTransformer(BaseModel):
 
         # transformer encoder
         self.norm_f = get_normalization_layer(config)
-        self.encoder = DenseTransformerEncoderLayer(
+        self.encoder = CustomTransformerEncoderLayer(
             config=config,
             n_features=n_inputs,
         )

@@ -185,7 +185,7 @@ def evaluate_model(model, data_loader, criterion, device):
 
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, scheduler, verbose=0, patience=100):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, scheduler, verbose=0, patience=100, l2_lambda=0.01):
     """
     Train the model using the provided data loader.
 
@@ -236,6 +236,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
             # Calculate loss
             loss = criterion(outputs, labels.long())
+
+            # Regularization: L2 weight decay
+            l2_lambda = 0.01  # You can adjust this value as needed
+            l2_reg = sum(param.pow(2.0).sum() for param in model.parameters())
+            loss = loss + l2_lambda * l2_reg
 
             # Backward pass and optimize
             loss.backward()
