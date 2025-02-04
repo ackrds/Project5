@@ -9,7 +9,7 @@ class SCELoss(nn.Module):
     Calculates calibration error separately for each class probability and averages across bins.
     This is an extension of ECE that handles the full multiclass probability distribution.
     """
-    def __init__(self, n_bins=15, n_classes=2):
+    def __init__(self, n_bins=30, n_classes=2):
         """
         Args:
             n_bins (int): Number of confidence interval bins

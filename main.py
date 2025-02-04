@@ -11,7 +11,7 @@ from mambular.base_models import  *
 from saint.model import SAINT
 from mambular.configs import *
 from utils import calculate_multipliers
-from models.CustomFTTransformer import FTTransformer as CustomFTTransformer
+from models.CustomFTTransformer import DenseFTTransformer  
 from models.NODE import NODE 
 # from models.config import DefaultFTTransformerConfig as DefaultCustomFTTransformerConfig
 
@@ -23,6 +23,7 @@ def main(args):
     batch_size = args.batch_size
     test_batch_size = args.test_batch_size
     pretrain = args.pretrain
+    n_bins = args.n_bins
     
     pretrain_epochs = args.pretrain_epochs
     pretrain_learning_rate = args.pretrain_learning_rate
@@ -93,7 +94,7 @@ def main(args):
         x_val_cat = [f.unsqueeze(1) for f in x_val_cat]
         x_test_cat = [f.unsqueeze(1) for f in x_test_cat]
 
-    if model_to_use == "CustomFTTransformer":
+    if model_to_use == "DenseFTTransformer":
         config = DefaultFTTransformerConfig()
     else:
         config = eval(f"Default{model_to_use}Config()")
@@ -196,7 +197,7 @@ def main(args):
     )
 
     # criterion = torch.nn.CrossEntropyLoss()
-    criterion =  HybridLoss(ce_weight=ce_weight, sce_weight=sce_weight)
+    criterion =  HybridLoss(n_bins=n_bins, ce_weight=ce_weight, sce_weight=sce_weight)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=5)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -285,6 +286,7 @@ if __name__ == "__main__":
     # Loss
     parser.add_argument("--sce_weight", type=float, default=1, help="sce weight")
     parser.add_argument("--ce_weight", type=float, default=0.5, help="ce weight")
+    parser.add_argument("--n_bins", type=int, default=30, help="number of bins")
     
     # Scheduler
     parser.add_argument("--t_max", type=int, default=40, help="cosine annealing t_max")

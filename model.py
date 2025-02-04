@@ -219,7 +219,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         correct = 0
         total = 0
 
-        for batch_idx, (num_feats, cat_feats, labels) in enumerate(tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}', leave=False)):
+        for batch_idx, (num_feats, cat_feats, labels) in enumerate(train_loader):
             # Move data to device
             num_feats = [feat.to(device) for feat in num_feats]
             cat_feats = [feat.to(device) for feat in cat_feats]

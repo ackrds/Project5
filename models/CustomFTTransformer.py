@@ -31,62 +31,90 @@ class GLU(nn.Module):
         return x[..., :split_dim] * torch.sigmoid(x[..., split_dim:])
 
 
-class CustomTransformerEncoderLayer(nn.TransformerEncoderLayer):
-    def __init__(self, config):
-        super().__init__(
-            d_model=getattr(config, "d_model", 128),
-            nhead=getattr(config, "n_heads", 8),
-            dim_feedforward=getattr(config, "transformer_dim_feedforward", 2048),
-            dropout=getattr(config, "attn_dropout", 0.1),
-            activation=getattr(config, "transformer_activation", F.relu),
-            layer_norm_eps=getattr(config, "layer_norm_eps", 1e-5),
-            norm_first=getattr(config, "norm_first", False),
-        )
-        self.bias = getattr(config, "bias", True)
-        self.custom_activation = ReGLU()
-        # Additional setup based on the activation function
-        if self.custom_activation in [ReGLU, GLU] or isinstance(self.custom_activation, ReGLU | GLU):
-            self.linear1 = nn.Linear(
-                config.d_model,
-                config.transformer_dim_feedforward,
-                bias=self.bias,
-            )
-            self.linear2 = nn.Linear(
-                int(config.transformer_dim_feedforward/2),
-                config.d_model,
-                bias=self.bias,
-            )
-        else:
-            self.linear1 = nn.Linear(
-                config.d_model,
-                config.transformer_dim_feedforward,
-                bias=self.bias,
-            )
-            self.linear2 = nn.Linear(
-                config.transformer_dim_feedforward,
-                config.d_model,
-                bias=self.bias,
-            )
+class DenseTransformerEncoderLayer(nn.Module):
+    def __init__(self, n_features, config):
+        """DenseTransformerEncoderLayer combines dense connectivity with transformer architecture.
+        Each layer receives concatenated features from all previous layers.
+
+        Args:
+            n_features: Number of input features
+            config: Configuration object with transformer parameters
+        """
+        super().__init__()
+        self.d_model = getattr(config, "d_model", 128)
+        n_layers = getattr(config, "n_layers", 6)
+        n_heads = getattr(config, "n_heads", 8)
+        attn_dropout = getattr(config, "attn_dropout", 0.1)
+        ff_dropout = getattr(config, "ff_dropout", 0.1)
+        activation = ReGLU()
+        expansion_factor = 2 if isinstance(activation, (ReGLU, GLU)) else 4
+
+        self.layers = nn.ModuleList([])
         
-        self.alpha = nn.Parameter(torch.zeros(1))
-        self.beta = nn.Parameter(torch.zeros(1))
+        for i in range(n_layers):
+            # Calculate input dimension for current layer (d_model * (i+1))
+            # because it receives concatenated features from all previous layers
+            curr_input_dim = self.d_model * (i + 1)
+            
+            self.layers.append(nn.ModuleList([
+                # Transition layer to handle concatenated input
+                nn.Linear(curr_input_dim, self.d_model),
+                
+                # Attention block
+                nn.LayerNorm(self.d_model),
+                nn.MultiheadAttention(
+                    embed_dim=self.d_model,
+                    num_heads=n_heads,
+                    dropout=attn_dropout,
+                    batch_first=True
+                ),
+                nn.Dropout(ff_dropout),
+                
+                # FFN block
+                nn.LayerNorm(self.d_model),
+                nn.Sequential(
+                    nn.Linear(self.d_model, self.d_model * expansion_factor),
+                    activation,
+                    nn.Dropout(ff_dropout),
+                    nn.Linear(self.d_model * (expansion_factor // 2), self.d_model)
+                )
+            ]))
 
-    def forward(self, src, src_mask=None, src_key_padding_mask=None, is_causal=False):
-        src2 = self.self_attn(src, src, src, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
-        src = src + self.alpha * self.dropout1(src2)
-        src = self.norm1(src)
-
-        # Use the provided activation function
-        if self.custom_activation in [ReGLU, GLU] or isinstance(self.custom_activation, ReGLU | GLU):
-            src2 = self.linear2(self.custom_activation(self.linear1(src)))
-        else:
-            src2 = self.linear2(self.custom_activation(self.linear1(src)))
-
-        src = src + self.beta * self.dropout2(src2)
-        src = self.norm2(src)
-        return src
+    def forward(self, x):
+        """
+        Args:
+            x: Input embeddings (batch_size, seq_len, d_model)
+        Returns:
+            x: Transformed embeddings (batch_size, seq_len, d_model)
+        """
+        layer_outputs = [x]  # Store all layer outputs for dense connectivity
+        
+        for transition, norm1, attn, dropout, norm2, ffn in self.layers:
+            # Concatenate all previous outputs
+            dense_input = torch.cat(layer_outputs, dim=-1)
+            
+            # Transition layer to handle dense input
+            x = transition(dense_input)
+            
+            # Multi-head attention block
+            residual = x
+            x = norm1(x)
+            x = attn(x, x, x)[0]
+            x = dropout(x)
+            x = x + residual
+            
+            # Feed-forward block
+            residual = x
+            x = norm2(x)
+            x = ffn(x)
+            x = x + residual
+            
+            # Store current layer output for dense connectivity
+            layer_outputs.append(x)
+            
+        return x
     
-class FTTransformer(BaseModel):
+class DenseFTTransformer(BaseModel):
     """A Feature Transformer model for tabular data with categorical and numerical features, using embedding,
     transformer encoding, and pooling to produce final predictions.
 
@@ -98,9 +126,9 @@ class FTTransformer(BaseModel):
         Dictionary containing information about numerical features, including their names and dimensions.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultFTTransformerConfig, optional
+    config : DefaultSAINTConfig, optional
         Configuration object containing model hyperparameters such as dropout rates, hidden layer sizes,
-        transformer settings, and other architectural configurations, by default DefaultFTTransformerConfig().
+        transformer settings, and other architectural configurations, by default DefaultSAINTConfig().
     **kwargs : dict
         Additional keyword arguments for the BaseModel class.
 
@@ -141,6 +169,9 @@ class FTTransformer(BaseModel):
         self.returns_ensemble = False
         self.cat_feature_info = cat_feature_info
         self.num_feature_info = num_feature_info
+        n_inputs = len(num_feature_info) + len(cat_feature_info)
+        if getattr(config, "use_cls", True):
+            n_inputs += 1
 
         # embedding layer
         self.embedding_layer = EmbeddingLayer(
@@ -151,11 +182,9 @@ class FTTransformer(BaseModel):
 
         # transformer encoder
         self.norm_f = get_normalization_layer(config)
-        encoder_layer = CustomTransformerEncoderLayer(config=config)
-        self.encoder = nn.TransformerEncoder(
-            encoder_layer,
-            num_layers=self.hparams.n_layers,
-            norm=self.norm_f,
+        self.encoder = DenseTransformerEncoderLayer(
+            config=config,
+            n_features=n_inputs,
         )
 
         self.tabular_head = MLPhead(
@@ -165,7 +194,7 @@ class FTTransformer(BaseModel):
         )
 
         # pooling
-        n_inputs = len(num_feature_info) + len(cat_feature_info)
+
         self.initialize_pooling_layers(config=config, n_inputs=n_inputs)
 
     def forward(self, num_features, cat_features):
