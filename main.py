@@ -5,7 +5,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from model import Model, MainDataset, train_model, evaluate_model
 from pretrain import PretrainingModel, PretrainingDataset, pretrain_model
-from loss_utils import HybridLoss
+from loss_utils import HybridLoss, FocalLoss
 from preprocessing import hash_features, split_df
 from saint.model import SAINT
 from mambular.configs import *
@@ -44,7 +44,7 @@ def main(args):
     patience = args.patience
     l2_lambda = args.l2_lambda
     output_dim = args.output_dim
-
+    criterion = args.criterion
     # data parameters
     year = args.year
     month = args.month
@@ -61,16 +61,16 @@ def main(args):
     # x_test_cat_scaled = []
 
     # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
-    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:100], dtype=torch.int))
-    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:100], dtype=torch.int))
+    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
+    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
     #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
     
     # x_train_cat = x_train_cat_scaled
     # x_val_cat = x_val_cat_scaled
     # x_test_cat = x_test_cat_scaled
 
-    # y_train = y_train[:100]
-    # y_val = y_val[:100]
+    # y_train = y_train[:10]
+    # y_val = y_val[:10]
     # y_test = y_test[:1000]
 
     # scaler = StandardScaler()
@@ -78,8 +78,8 @@ def main(args):
     # x_val_num_scaled = []
     # x_test_num_scaled = []
     # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:100]), dtype=torch.float32))
-    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:100]), dtype=torch.float32))
+    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
+    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
     #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
 
     scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
@@ -199,7 +199,10 @@ def main(args):
     )
 
     # criterion = torch.nn.CrossEntropyLoss()
-    criterion =  HybridLoss(n_bins=n_bins, ce_weight=ce_weight, sce_weight=sce_weight)
+    if criterion == "focal":
+        criterion =  FocalLoss(alpha=1, gamma=2)
+    else:
+        criterion = HybridLoss(n_bins=n_bins, ce_weight=ce_weight, sce_weight=sce_weight)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=5)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -287,6 +290,7 @@ if __name__ == "__main__":
     parser.add_argument("--test_batch_size", type=int, default=512, help="test batch size")
 
     # Loss
+    parser.add_argument("--criterion", type=str, default="hybrid", help="criterion")
     parser.add_argument("--sce_weight", type=float, default=1, help="sce weight")
     parser.add_argument("--ce_weight", type=float, default=0.5, help="ce weight")
     parser.add_argument("--n_bins", type=int, default=30, help="number of bins")

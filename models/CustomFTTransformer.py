@@ -76,49 +76,44 @@ class CustomTransformerEncoderLayer(nn.TransformerEncoderLayer):
         src = self.norm2(src)
         return src
 
+class DenseTransformerEncoderLayer(CustomTransformerEncoderLayer):
+    def __init__(self, config, in_channels):
+        super().__init__(config)
+        self.in_channels = in_channels
+        self.out_channels = getattr(config, "d_model", 128)
+        
+        # Downsample layer to handle concatenated features
+        self.downsample = nn.Linear(
+            self.in_channels,
+            self.out_channels,
+            bias=getattr(config, "bias", True)
+        )
+    
+    def forward(self, src, prev_outputs=None, src_mask=None, src_key_padding_mask=None):
+        # If we have previous outputs, concatenate them along the feature dimension
+        if prev_outputs is not None:
+            concatenated = torch.cat([src] + prev_outputs, dim=-1)
+            # Downsample the concatenated features
+            src = self.downsample(concatenated)
+        
+        # Standard transformer processing
+        src2 = self.self_attn(src, src, src, attn_mask=src_mask, 
+                            key_padding_mask=src_key_padding_mask)[0]
+        src = src + self.dropout1(src2)
+        src = self.norm1(src)
+
+        if self.custom_activation in [ReGLU, GLU] or isinstance(self.custom_activation, (ReGLU, GLU)):
+            src2 = self.linear2(self.custom_activation(self.linear1(src)))
+        else:
+            src2 = self.linear2(self.custom_activation(self.linear1(src)))
+
+        src = src + self.dropout2(src2)
+        src = self.norm2(src)
+        
+        return src
+    
     
 class FTTransformer(BaseModel):
-    """A Feature Transformer model for tabular data with categorical and numerical features, using embedding,
-    transformer encoding, and pooling to produce final predictions.
-
-    Parameters
-    ----------
-    cat_feature_info : dict
-        Dictionary containing information about categorical features, including their names and dimensions.
-    num_feature_info : dict
-        Dictionary containing information about numerical features, including their names and dimensions.
-    num_classes : int, optional
-        The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultFTTransformerConfig, optional
-        Configuration object containing model hyperparameters such as dropout rates, hidden layer sizes,
-        transformer settings, and other architectural configurations, by default DefaultFTTransformerConfig().
-    **kwargs : dict
-        Additional keyword arguments for the BaseModel class.
-
-    Attributes
-    ----------
-    pooling_method : str
-        The pooling method to aggregate features after transformer encoding.
-    cat_feature_info : dict
-        Stores categorical feature information.
-    num_feature_info : dict
-        Stores numerical feature information.
-    embedding_layer : EmbeddingLayer
-        Layer for embedding categorical and numerical features.
-    norm_f : nn.Module
-        Normalization layer for the transformer output.
-    encoder : nn.TransformerEncoder
-        Transformer encoder for sequential processing of embedded features.
-    tabular_head : MLPhead
-        MLPhead layer to produce the final prediction based on the output of the transformer encoder.
-
-    Methods
-    -------
-    forward(num_features, cat_features)
-        Perform a forward pass through the model, including embedding, transformer encoding,
-        pooling, and prediction steps.
-    """
-
     def __init__(
         self,
         cat_feature_info,
@@ -140,15 +135,6 @@ class FTTransformer(BaseModel):
             config=config,
         )
 
-        # transformer encoder
-        self.norm_f = get_normalization_layer(config)
-        encoder_layer = CustomTransformerEncoderLayer(config=config)
-        self.encoder = nn.TransformerEncoder(
-            encoder_layer,
-            num_layers=self.hparams.n_layers,
-            norm=self.norm_f,
-        )
-
         self.tabular_head = MLPhead(
             input_dim=self.hparams.d_model,
             config=config,
@@ -159,29 +145,40 @@ class FTTransformer(BaseModel):
         n_inputs = len(num_feature_info) + len(cat_feature_info)
         self.initialize_pooling_layers(config=config, n_inputs=n_inputs)
 
+        
+        # Replace the standard encoder with a dense version
+        self.encoder_layers = nn.ModuleList()
+        d_model = self.hparams.d_model
+        
+        # Create dense encoder layers
+        for i in range(self.hparams.n_layers):
+            # Calculate input channels for each layer (original + all previous outputs)
+            in_channels = d_model * (i + 1)
+            layer = DenseTransformerEncoderLayer(config=config, in_channels=in_channels)
+            self.encoder_layers.append(layer)
+            
+        # Final normalization
+        self.norm_f = get_normalization_layer(config)
+        
     def forward(self, num_features, cat_features):
-        """Defines the forward pass of the model.
-
-        Parameters
-        ----------
-        num_features : Tensor
-            Tensor containing the numerical features.
-        cat_features : Tensor
-            Tensor containing the categorical features.
-
-        Returns
-        -------
-        Tensor
-            The output predictions of the model.
-        """
         x = self.embedding_layer(num_features, cat_features)
-
-        x = self.encoder(x)
-
-        x = self.pool_sequence(x)
-
+        
+        # Store all intermediate outputs for dense connections
+        layer_outputs = []
+        current_features = x
+        
+        # Process through dense encoder layers
+        for layer in self.encoder_layers:
+            output = layer(current_features, 
+                         prev_outputs=layer_outputs if layer_outputs else None)
+            layer_outputs.append(output)
+            current_features = output
+        
+        # Pool the final output
+        x = self.pool_sequence(current_features)
+        
         if self.norm_f is not None:
             x = self.norm_f(x)
+            
         preds = self.tabular_head(x)
-
         return preds
