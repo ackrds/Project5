@@ -10,9 +10,9 @@ from preprocessing import hash_features, split_df
 from saint.model import SAINT
 from mambular.configs import *
 from utils import calculate_multipliers
-from models.CustomFTTransformer import CustomFTTransformer  
+from models.CustomFTTransformer import FTTransformer  
 from models.NODE import NODE 
-from mambular.base_models import  * 
+# from mambular.base_models import  * 
 
 # from models.config import DefaultFTTransformerConfig as DefaultCustomFTTransformerConfig
 

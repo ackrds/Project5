@@ -31,69 +31,53 @@ class GLU(nn.Module):
         return x[..., :split_dim] * torch.sigmoid(x[..., split_dim:])
 
 
-class CustomTransformerEncoderLayer(nn.Module):
-    def __init__(self, n_features, config):
-        """DenseTransformerEncoderLayer combines dense connectivity with transformer architecture.
-        Each layer receives concatenated features from all previous layers.
-
-        Args:
-            n_features: Number of input features
-            config: Configuration object with transformer parameters
-        """
-        super().__init__()
+class CustomTransformerEncoderLayer(nn.TransformerEncoderLayer):
+    def __init__(self, config):
+        super().__init__(
+            d_model=getattr(config, "d_model", 128),
+            nhead=getattr(config, "n_heads", 8),
+            dim_feedforward=getattr(config, "transformer_dim_feedforward", 2048),
+            dropout=getattr(config, "attn_dropout", 0.1),
+            activation=getattr(config, "transformer_activation", F.relu),
+            layer_norm_eps=getattr(config, "layer_norm_eps", 1e-5),
+            norm_first=getattr(config, "norm_first", False),
+        )
+        self.bias = getattr(config, "bias", True)
+        # self.custom_activation = getattr(config, "transformer_activation", F.relu)
+        self.custom_activation = ReGLU()
+        self.transformer_dim_feedforward = getattr(config, "transformer_dim_feedforward", 2048)
         self.d_model = getattr(config, "d_model", 128)
-        n_layers = getattr(config, "n_layers", 6)
-        n_heads = getattr(config, "n_heads", 8)
-        attn_dropout = getattr(config, "attn_dropout", 0.2)
-        ff_dropout = getattr(config, "ff_dropout", 0.2)
-        activation = ReGLU()
-        expansion_factor = 2 if isinstance(activation, (ReGLU, GLU)) else 4
-        self.transformer_dim_feedforward = getattr(config, "transformer_dim_feedforward", 1024)
-        self.layers = nn.ModuleList([])
-        print(config.ff_dropout)
-        
-        for i in range(n_layers):
-            # Calculate input dimension for current layer (d_model * (i+1))
-            # because it receives concatenated features from all previous layers
-            
-            self.layers.append(nn.ModuleList([
-                nn.MultiheadAttention(
-                    embed_dim=self.d_model,
-                    num_heads=n_heads,
-                    dropout=attn_dropout,
-                    batch_first=True
-                ),
-                nn.Dropout(ff_dropout),
-                nn.LayerNorm(self.d_model),
-                
-                nn.Sequential(
-                    nn.Linear(self.d_model, self.transformer_dim_feedforward*2),
-                    activation,
-                    nn.Linear(self.transformer_dim_feedforward, self.d_model)
-                ),
-                nn.LayerNorm(self.d_model),
-                nn.Dropout(ff_dropout),
 
-            ]))
+        # Additional setup based on the activation function
+        if self.custom_activation in [ReGLU, GLU] or isinstance(self.custom_activation, ReGLU | GLU):
+            self.linear1 = nn.Linear(
+                self.d_model,
+                self.transformer_dim_feedforward ,
+                bias=self.bias,
+            )
+            self.linear2 = nn.Linear(
+                self.transformer_dim_feedforward//2,
+                self.d_model,
+                bias=self.bias,
+            )
 
-    def forward(self, x):
-        """
-        Args:
-            x: Input embeddings (batch_size, seq_len, d_model)
-        Returns:
-            x: Transformed embeddings (batch_size, seq_len, d_model)
-        """
-        
-        for  attn, norm1, dropout1,ffn, norm2, dropout2 in self.layers:
-            x_attn = attn(x, x, x)[0]
-            x = x + dropout1(x_attn)
-            x = norm1(x)
-            x_ffn = ffn(x)
-            x = x + dropout2(x_ffn)
-            x = norm2(x)
-        return x
+    def forward(self, src, src_mask=None, src_key_padding_mask=None, is_causal=False):
+        src2 = self.self_attn(src, src, src, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
+        src = src + self.dropout1(src2)
+        src = self.norm1(src)
+
+        # Use the provided activation function
+        if self.custom_activation in [ReGLU, GLU] or isinstance(self.custom_activation, ReGLU | GLU):
+            src2 = self.linear2(self.custom_activation(self.linear1(src)))
+        else:
+            src2 = self.linear2(self.custom_activation(self.linear1(src)))
+
+        src = src + self.dropout2(src2)
+        src = self.norm2(src)
+        return src
+
     
-class CustomFTTransformer(BaseModel):
+class FTTransformer(BaseModel):
     """A Feature Transformer model for tabular data with categorical and numerical features, using embedding,
     transformer encoding, and pooling to produce final predictions.
 
@@ -105,9 +89,9 @@ class CustomFTTransformer(BaseModel):
         Dictionary containing information about numerical features, including their names and dimensions.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultSAINTConfig, optional
+    config : DefaultFTTransformerConfig, optional
         Configuration object containing model hyperparameters such as dropout rates, hidden layer sizes,
-        transformer settings, and other architectural configurations, by default DefaultSAINTConfig().
+        transformer settings, and other architectural configurations, by default DefaultFTTransformerConfig().
     **kwargs : dict
         Additional keyword arguments for the BaseModel class.
 
@@ -148,9 +132,6 @@ class CustomFTTransformer(BaseModel):
         self.returns_ensemble = False
         self.cat_feature_info = cat_feature_info
         self.num_feature_info = num_feature_info
-        n_inputs = len(num_feature_info) + len(cat_feature_info)
-        if getattr(config, "use_cls", True):
-            n_inputs += 1
 
         # embedding layer
         self.embedding_layer = EmbeddingLayer(
@@ -161,9 +142,11 @@ class CustomFTTransformer(BaseModel):
 
         # transformer encoder
         self.norm_f = get_normalization_layer(config)
-        self.encoder = CustomTransformerEncoderLayer(
-            config=config,
-            n_features=n_inputs,
+        encoder_layer = CustomTransformerEncoderLayer(config=config)
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=self.hparams.n_layers,
+            norm=self.norm_f,
         )
 
         self.tabular_head = MLPhead(
@@ -173,7 +156,7 @@ class CustomFTTransformer(BaseModel):
         )
 
         # pooling
-
+        n_inputs = len(num_feature_info) + len(cat_feature_info)
         self.initialize_pooling_layers(config=config, n_inputs=n_inputs)
 
     def forward(self, num_features, cat_features):
