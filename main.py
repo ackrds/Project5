@@ -176,7 +176,7 @@ def main(args):
         dropout=dropout
     ).to(device)
 
-    print(model.model.state_dict)
+    # print(model.model.state_dict)
 
     train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
     val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
