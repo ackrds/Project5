@@ -16,17 +16,19 @@ class PretrainingModel(BaseModel):
             num_feature_info,
             model,
             output_dim,
+            pretrain_config,
             config=DefaultFTTransformerConfig(),
-            temperature: float = 0.07,  
-            dropout: float = 0.2,      
-            hidden_dim: int = 1024,    
-            projection_dim: int = 512,  
-            lambda_: float = 0.75,
             **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
 
+        self.temperature = getattr(pretrain_config, "temperature", 0.07)
+        self.dropout = getattr(pretrain_config, "dropout", 0.2)
+        self.hidden_dim = getattr(pretrain_config, "hidden_dim", 1024)
+        self.projection_dim = getattr(pretrain_config, "projection_dim", 512)
+        self.lambda_ = getattr(pretrain_config, "lambda_", 0.75)
+        self.numeric_loss_type = getattr(pretrain_config, "numeric_loss_type", "nll")
 
         self.model = model(cat_feature_info, num_feature_info, output_dim, config=config)
 
@@ -36,31 +38,29 @@ class PretrainingModel(BaseModel):
         self.tabular_head = self.model.tabular_head
 
         self.output_dim = output_dim
-        self.temperature = temperature
-        self.lambda_ = lambda_
 
         # Improved projection head with larger capacity and bottleneck
         self.projector = nn.Sequential(
-            nn.Linear(output_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+            nn.Linear(output_dim, self.hidden_dim),
+            nn.LayerNorm(self.hidden_dim),
             nn.SELU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+            nn.Linear(self.hidden_dim, self.hidden_dim),
+            nn.LayerNorm(self.hidden_dim),
             nn.SELU(),
-            nn.Linear(hidden_dim, hidden_dim),  # One more layer for deeper representation
-            nn.LayerNorm(hidden_dim),
+            nn.Linear(self.hidden_dim, self.hidden_dim),  # One more layer for deeper representation
+            nn.LayerNorm(self.hidden_dim),
             nn.SELU(),
-            nn.Linear(hidden_dim, projection_dim)  # Project to smaller dim for contrastive learning
+            nn.Linear(self.hidden_dim, self.projection_dim)  # Project to smaller dim for contrastive learning
         )
         # Define prediction heads
         self.num_heads = nn.ModuleList([
-            output_head(output_dim, hidden_dim, dropout, 2) for _ in num_feature_info
+            output_head(output_dim, self.hidden_dim, self.dropout, 2) for _ in num_feature_info
         ])
         
         # Improved categorical prediction heads
         # Categorical prediction heads for InfoNCE
         self.cat_heads = nn.ModuleList([
-            output_head(output_dim, hidden_dim, dropout, info["categories"]) 
+            output_head(output_dim, self.hidden_dim, self.dropout, info["categories"]) 
             for info in cat_feature_info.values()
         ])    
     
@@ -106,12 +106,15 @@ class PretrainingModel(BaseModel):
         """Compute reconstruction loss for numeric features"""
         num_recon_loss = 0.0
         for pred, target in zip(num_preds, num_targets):
-            mean, log_var = pred.chunk(2, dim=-1)
-            var = torch.exp(log_var)
-            num_recon_loss += torch.mean(0.5 * (
-                torch.log(var) + 
-                (target.view(-1, 1) - mean)**2 / var
-            ))
+            if self.numeric_loss_type == "mae":
+                num_recon_loss += torch.mean(torch.abs(pred - target))
+            elif self.numeric_loss_type == "nll":
+                mean, log_var = pred.chunk(2, dim=-1)
+                var = torch.exp(log_var)
+                num_recon_loss += torch.mean(0.5 * (
+                    torch.log(var) + 
+                    (target.view(-1, 1) - mean)**2 / var
+                ))
         return num_recon_loss
 
     def compute_categorical_loss(self, cat_logits, cat_targets):
@@ -223,39 +226,6 @@ class PretrainingDataset(Dataset):
         num_targets = [f.clone() for f in self.num_features]
         cat_targets = [f.clone() for f in self.cat_features]
 
-        # Generate masks for all features
-        # augmention_num_masks = [torch.rand(f.shape) < self.mask_ratio for f in self.num_features]
-        # augmention_cat_masks = [torch.rand(f.shape) < self.mask_ratio for f in self.cat_features]
-
-        # Apply masking to numerical features
-        # for i, num_feat in  enumerate(augmented_num_features):
-        #     distortion = augmented_num_masks[i]
-
-        #     if distortion.any():
-        #         # Get masked positions
-        #         distortion_indices = torch.where(distortion)
-        #         distortion_masked = len(distortion_indices[0])
-        #         shuffled_indices = torch.randperm(distortion_masked)
-
-        #         rows, cols = distortion_indices[0], distortion_indices[1]
-        #         feat_stds = num_feat.std(dim=0)
-        #         feat_means = num_feat.mean(dim=0)
-        #         random_values = torch.randn(len(rows)) * feat_stds[cols] + feat_means[cols]
-        #         augmented_num_features[i][rows, cols] = random_values
-
-        #         # 10% keep unchanged (already done by cloning)
-
-        # # Apply masking to categorical features
-        # for i, (cat_feat, num_categories) in enumerate(zip(augmented_cat_features, self.mask_tokens)):
-        #     distortion = augmented_cat_masks[i]
-
-        #     if distortion.any():
-        #         distortion_indices = torch.where(distortion)
-        #         distortion_masked = len(distortion_indices[0])
-        #         shuffled_indices = torch.randperm(distortion_masked)
-
-        #         rows = distortion_indices[0]
-        #         augmented_cat_features[i][rows] = torch.randint(0, num_categories, (len(rows),)).to(augmented_cat_features[i].dtype)
 
         return (input_num_features,  input_cat_features), (num_targets, cat_targets)
 
@@ -310,16 +280,11 @@ def pretrain_model(model, train_loader, val_loader, num_epochs, device, lr=0.001
             input_cat_features = [f.to(device) for f in input_cat_features]
             num_features = [t.to(device) for t in num_features]
             cat_features = [t.to(device) for t in cat_features]
-            # num_masks = [m.to(device) for m in num_masks]
-            # cat_masks = [m.to(device) for m in cat_masks]
 
             optimizer.zero_grad()
 
             # Forward pass
             outputs = model(input_num_features, input_cat_features)
-            # num_preds = outputs['num_preds']
-            # cat_logits = outputs['cat_logits']
-            # proj = outputs['proj']
 
             loss = model.compute_total_loss(num_features, cat_features, outputs)
             loss = loss['total_loss']

@@ -15,7 +15,7 @@ class Model(BaseModel):
             num_feature_info,
             model,
             output_dim,
-            pretrained_state_dict=None,
+            # pretrained_state_dict=None,
             config = None,
             hidden_dim=512,
             dropout=0.2,
@@ -28,12 +28,12 @@ class Model(BaseModel):
         self.output_dim = output_dim
 
 
-        if pretrained_state_dict is not None:
-            self.model.embedding_layer.load_state_dict(pretrained_state_dict)  # Fixed loading state dict
-            print("Loaded pretrained state dict")
+        # if pretrained_state_dict is not None:
+        #     self.model.embedding_layer.load_state_dict(pretrained_state_dict)  # Fixed loading state dict
+            # print("Loaded pretrained state dict")
             # Freeze embedding layer
-            for param in self.model.embedding_layer.parameters():
-                param.requires_grad = False
+            # for param in self.model.embedding_layer.parameters():
+            #     param.requires_grad = False
 
         if self.output_dim > 2:
             self.output_head = output_head(output_dim, hidden_dim, dropout, 2)

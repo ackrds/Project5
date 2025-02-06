@@ -15,6 +15,27 @@ from mambular.configs import *
 
 # from models.config import DefaultFTTransformerConfig as DefaultCustomFTTransformerConfig
 
+# Constants for magic numbers
+SAMPLE_SIZE = 10
+LARGE_SAMPLE_SIZE = 1000
+
+def scale_features(scaler_type, x_train_num, x_val_num, x_test_num):
+    scaler = StandardScaler() if scaler_type == 'standard' else MinMaxScaler()
+    x_train_num_scaled = []
+    x_val_num_scaled = []
+    x_test_num_scaled = []
+    for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
+        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
+        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
+        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+    return x_train_num_scaled, x_val_num_scaled, x_test_num_scaled
+
+def load_datasets(x_train_num_scaled, x_train_cat, y_train, x_val_num_scaled, x_val_cat, y_val, x_test_num_scaled, x_test_cat, y_test):
+    train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
+    val_dataset = MainDataset(x_val_num_scaled, x_val_cat, y_val)
+    test_dataset = MainDataset(x_test_num_scaled, x_test_cat, y_test)
+    return train_dataset, val_dataset, test_dataset
+
 def main(args):
 
     # DefaultCustomFTTransformerConfig = {}
@@ -24,10 +45,9 @@ def main(args):
     test_batch_size = args.test_batch_size
     pretrain = args.pretrain
     n_bins = args.n_bins
-    
+    pretrain_config = args.pretrain_config
     pretrain_epochs = args.pretrain_epochs
     pretrain_learning_rate = args.pretrain_learning_rate
-    pretrain_dropout = args.pretrain_dropout
     learning_rate = args.learning_rate
     model_to_use = args.model_type
     num_epochs = args.num_epochs
@@ -54,41 +74,34 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     x_train_num, x_train_cat, x_val_num, x_val_cat, x_test_num, x_test_cat, y_train, y_val, y_test, num_feature_info, cat_feature_info, test_columns = split_df(year=year, month=month)
+    x_train_num_scaled, x_val_num_scaled, x_test_num_scaled = scale_features(scaler, x_train_num, x_val_num, x_test_num)
 
-    x_train_cat_scaled = []
-    x_val_cat_scaled = []
-    x_test_cat_scaled = []
+    # x_train_cat_scaled = []
+    # x_val_cat_scaled = []
+    # x_test_cat_scaled = []
 
-    for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
-        x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
-        x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
-        x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
+    # for train_cat_feat, val_cat_feat, test_cat_feat in zip(x_train_cat, x_val_cat, x_test_cat):
+    #     x_train_cat_scaled.append(torch.tensor(train_cat_feat[:10], dtype=torch.int))
+    #     x_val_cat_scaled.append(torch.tensor(val_cat_feat[:10], dtype=torch.int))
+    #     x_test_cat_scaled.append(torch.tensor(test_cat_feat[:1000], dtype=torch.int)) 
     
-    x_train_cat = x_train_cat_scaled
-    x_val_cat = x_val_cat_scaled
-    x_test_cat = x_test_cat_scaled
+    # x_train_cat = x_train_cat_scaled
+    # x_val_cat = x_val_cat_scaled
+    # x_test_cat = x_test_cat_scaled
 
-    y_train = y_train[:10]
-    y_val = y_val[:10]
-    y_test = y_test[:1000]
+    # y_train = y_train[:10]
+    # y_val = y_val[:10]
+    # y_test = y_test[:1000]
 
-    scaler = StandardScaler()
-    x_train_num_scaled = []
-    x_val_num_scaled = []
-    x_test_num_scaled = []
-    for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-        x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
-        x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
-        x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
-
-    # scaler = StandardScaler() if scaler == 'standard' else MinMaxScaler()  
+    # scaler = StandardScaler()
     # x_train_num_scaled = []
     # x_val_num_scaled = []
     # x_test_num_scaled = []
     # for train_feat, val_feat, test_feat in zip(x_train_num, x_val_num, x_test_num):
-    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat), dtype=torch.float32))
-    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat), dtype=torch.float32))
-    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat), dtype=torch.float32))
+    #     x_train_num_scaled.append(torch.tensor(scaler.fit_transform(train_feat[:10]), dtype=torch.float32))
+    #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
+    #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
+
 
     if use_embeddings == 1:
         x_train_cat = [f.unsqueeze(1) for f in x_train_cat]
@@ -100,10 +113,6 @@ def main(args):
     else:
         config = eval(f"Default{model_to_use}Config()")
     model_to_use = eval(f"{model_to_use}")
-    print(config.pooling_method)
-
-    # print(x_train_num_scaled[0].shape)
-    # print(x_train_cat[0].shape)
 
 
     if len(args.config_values.keys()) > 0:
@@ -138,12 +147,12 @@ def main(args):
             )
         
         # Initialize and pretrain model
-        config = DefaultFTTransformerConfig()
         pretrain_model_inst = PretrainingModel(
             cat_feature_info,
             num_feature_info,
             model_to_use,
             output_dim,
+            pretrain_config=pretrain_config,
             config=config
         ).to(device)
 
@@ -156,31 +165,30 @@ def main(args):
             pretrain_epochs,
             device, 
             lr=pretrain_learning_rate,
-            # dropout=pretrain_dropout
         )
 
-        pretrained_state_dict = pretrained_model.encoder.embedding_layer.state_dict()
+        # pretrained_state_dict = pretrained_model.encoder.embedding_layer.state_dict()
 
     else:
-        pretrained_state_dict = None
-
+        pretrained_model = None
 
     model = Model(
-        cat_feature_info=cat_feature_info,
-        num_feature_info=num_feature_info,
-        model=model_to_use,
-        output_dim=output_dim,
-        pretrained_state_dict=pretrained_state_dict,
-        config=config,
-        hidden_dim=hidden_dim,
-        dropout=dropout
-    ).to(device)
+            cat_feature_info=cat_feature_info,
+            num_feature_info=num_feature_info,
+            model=model_to_use,
+            output_dim=output_dim,
+            config=config,
+            hidden_dim=hidden_dim,
+            dropout=dropout
+        ).to(device)
+    
+    if pretrained_model is not None:
+        print("Loading pretrained model")
+        model.model.embedding_layer.load_state_dict(pretrained_model.embedding_layer.state_dict())
+        model.model.encoder.load_state_dict(pretrained_model.encoder.state_dict())
 
-    # print(model.model.state_dict)
 
-    train_dataset = MainDataset(x_train_num_scaled, x_train_cat, y_train)
-    val_dataset  = MainDataset(x_val_num_scaled, x_val_cat, y_val)
-    test_dataset = MainDataset(x_test_num_scaled, x_test_cat, y_test)
+    train_dataset, val_dataset, test_dataset = load_datasets(x_train_num_scaled, x_train_cat, y_train, x_val_num_scaled, x_val_cat, y_val, x_test_num_scaled, x_test_cat, y_test)
 
     train_loader = DataLoader(
         train_dataset,
@@ -271,7 +279,7 @@ if __name__ == "__main__":
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
     parser.add_argument("--pretrain_learning_rate", type=float, default=0.001, help="pretrain learning rate")
     parser.add_argument("--pretrain_batch_size", type=int, default=512, help="pretrain batch size")
-    parser.add_argument("--pretrain_dropout", type=float, default=0.1, help="pretrain dropout")
+    parser.add_argument("--pretrain_config", type=parse_dict, default='{"temperature": 0.09, "dropout": 0.2, "hidden_dim": 1024, "projection_dim": 512, "lambda_": 0.75}', help="pretrain config")
 
     # Training
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")
