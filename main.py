@@ -45,7 +45,7 @@ def main(args):
     test_batch_size = args.test_batch_size
     pretrain = args.pretrain
     n_bins = args.n_bins
-    pretrain_config = args.pretrain_config
+    pretrain_config_dict = args.pretrain_config
     pretrain_epochs = args.pretrain_epochs
     pretrain_learning_rate = args.pretrain_learning_rate
     learning_rate = args.learning_rate
@@ -68,7 +68,6 @@ def main(args):
     year = args.year
     month = args.month
     scaler = args.scaler
-
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -102,7 +101,7 @@ def main(args):
     #     x_val_num_scaled.append(torch.tensor(scaler.transform(val_feat[:10]), dtype=torch.float32))
     #     x_test_num_scaled.append(torch.tensor(scaler.transform(test_feat[:1000]), dtype=torch.float32))
 
-
+    print(len(x_train_num_scaled[0]))
     if use_embeddings == 1:
         x_train_cat = [f.unsqueeze(1) for f in x_train_cat]
         x_val_cat = [f.unsqueeze(1) for f in x_val_cat]
@@ -145,6 +144,9 @@ def main(args):
                 num_workers=2,
                 pin_memory=True
             )
+        pretrain_config = {}
+        for key, value in pretrain_config_dict.items():
+            pretrain_config[key] = value
         
         # Initialize and pretrain model
         pretrain_model_inst = PretrainingModel(
@@ -279,7 +281,7 @@ if __name__ == "__main__":
     parser.add_argument("--pretrain_epochs", type=int, default=15, help="epochs")
     parser.add_argument("--pretrain_learning_rate", type=float, default=0.001, help="pretrain learning rate")
     parser.add_argument("--pretrain_batch_size", type=int, default=512, help="pretrain batch size")
-    parser.add_argument("--pretrain_config", type=parse_dict, default='{"temperature": 0.09, "dropout": 0.2, "hidden_dim": 1024, "projection_dim": 512, "lambda_": 0.75}', help="pretrain config")
+    parser.add_argument("--pretrain_config", type=parse_dict, default='{"temperature": 0.07, "dropout": 0.2, "hidden_dim": 1024, "projection_dim": 512, "lambda_": 0.75, "numeric_loss_type": "mae"}', help="pretrain config")
 
     # Training
     parser.add_argument("--num_epochs", type=int, default=10, help="number of training epochs")

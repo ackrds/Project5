@@ -23,12 +23,12 @@ class PretrainingModel(BaseModel):
         super().__init__()
         self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
 
-        self.temperature = getattr(pretrain_config, "temperature", 0.07)
-        self.dropout = getattr(pretrain_config, "dropout", 0.2)
-        self.hidden_dim = getattr(pretrain_config, "hidden_dim", 1024)
-        self.projection_dim = getattr(pretrain_config, "projection_dim", 512)
-        self.lambda_ = getattr(pretrain_config, "lambda_", 0.75)
-        self.numeric_loss_type = getattr(pretrain_config, "numeric_loss_type", "nll")
+        self.temperature = pretrain_config["temperature"] 
+        self.dropout = pretrain_config["dropout"]
+        self.hidden_dim = pretrain_config["hidden_dim"]
+        self.projection_dim = pretrain_config["projection_dim"]
+        self.lambda_ = pretrain_config["lambda_"]
+        self.numeric_loss_type = pretrain_config["numeric_loss_type"]
 
         self.model = model(cat_feature_info, num_feature_info, output_dim, config=config)
 
@@ -54,7 +54,7 @@ class PretrainingModel(BaseModel):
         )
         # Define prediction heads
         self.num_heads = nn.ModuleList([
-            output_head(output_dim, self.hidden_dim, self.dropout, 2) for _ in num_feature_info
+            output_head(output_dim, self.hidden_dim, self.dropout, 1 if self.numeric_loss_type == "mae" else 2) for _ in num_feature_info
         ])
         
         # Improved categorical prediction heads
@@ -179,20 +179,26 @@ class PretrainingDataset(Dataset):
     def __init__(self, num_features: List[torch.Tensor],
                  cat_features: List[torch.Tensor],
                  cat_feature_info: Dict,
-                 mask_ratio: float = 0.45):
+                 mask_ratio: float = 0.45,
+                 cutmix_prob: float = 0.5,
+                 beta: float = 1.0):
         """
-        Dataset for self-supervised pretraining with masked feature prediction.
+        Dataset for self-supervised pretraining with masked feature prediction and CutMix augmentation.
 
         Args:
             num_features: List of numerical feature tensors
-            cat_features: List of categorical feature tensors
+            cat_features: List of categorical feature tensors 
             cat_feature_info: Dictionary containing categorical feature information
             mask_ratio: Fraction of features to mask for prediction
+            cutmix_prob: Probability of applying CutMix augmentation
+            beta: Parameter for Beta distribution to sample mixing ratio
         """
         self.num_features = num_features
         self.cat_features = cat_features
         self.cat_feature_info = cat_feature_info
         self.mask_ratio = mask_ratio
+        self.cutmix_prob = cutmix_prob
+        self.beta = beta
 
         # Verify all features have same length
         lengths = ([f.shape[0] for f in num_features] +
@@ -216,42 +222,79 @@ class PretrainingDataset(Dataset):
         """
         Generate masks for the entire dataset at once.
         Returns:
-            Tuple of (masked_features, targets, masks)
+            Tuple of (masked_features, targets)
         """
         # Clone features for masked version
-        input_num_features  = [f.clone() for f in self.num_features]
+        input_num_features = [f.clone() for f in self.num_features]
         input_cat_features = [f.clone() for f in self.cat_features]
 
         # Create targets
         num_targets = [f.clone() for f in self.num_features]
         cat_targets = [f.clone() for f in self.cat_features]
 
+        return (input_num_features, input_cat_features), (num_targets, cat_targets)
 
-        return (input_num_features,  input_cat_features), (num_targets, cat_targets)
+    def apply_cutmix(self, idx1, idx2, lambda_mix):
+        """
+        Apply CutMix augmentation between two samples.
+        
+        Args:
+            idx1: Index of first sample
+            idx2: Index of second sample
+            lambda_mix: Mixing ratio (area of first sample)
+            
+        Returns:
+            Tuple of mixed inputs and targets
+        """
+        # Get features for both samples
+        input_num1 = [f[idx1] for f in self.input_features[0]]
+        input_cat1 = [f[idx1] for f in self.input_features[1]]
+        target_num1 = [f[idx1] for f in self.targets[0]]
+        target_cat1 = [f[idx1] for f in self.targets[1]]
+
+        input_num2 = [f[idx2] for f in self.input_features[0]]
+        input_cat2 = [f[idx2] for f in self.input_features[1]]
+        target_num2 = [f[idx2] for f in self.targets[0]]
+        target_cat2 = [f[idx2] for f in self.targets[1]]
+
+        # Mix numerical features
+        mixed_input_num = [lambda_mix * f1 + (1 - lambda_mix) * f2 
+                          for f1, f2 in zip(input_num1, input_num2)]
+        mixed_target_num = [lambda_mix * t1 + (1 - lambda_mix) * t2 
+                           for t1, t2 in zip(target_num1, target_num2)]
+
+        # For categorical features, randomly choose based on lambda_mix
+        mixed_input_cat = []
+        mixed_target_cat = []
+        for f1, f2, t1, t2 in zip(input_cat1, input_cat2, target_cat1, target_cat2):
+            mask = torch.rand_like(f1, dtype=torch.float) < lambda_mix
+            mixed_input = torch.where(mask, f1, f2)
+            mixed_target = torch.where(mask, t1, t2)
+            mixed_input_cat.append(mixed_input)
+            mixed_target_cat.append(mixed_target)
+
+        return (mixed_input_num, mixed_input_cat), (mixed_target_num, mixed_target_cat)
 
     def __getitem__(self, idx):
         """
-        Get a batch of masked and target features.
+        Get a batch of masked and target features with potential CutMix augmentation.
         """
-        # Get masked features
-        input_num_features = [f[idx] for f in self.input_features[0]]
-        input_cat_features = [f[idx] for f in self.input_features[1]]
-
-        # Get targets
-        target_num = [f[idx] for f in self.targets[0]]
-        target_cat = [f[idx] for f in self.targets[1]]
-
-        # Get masks
-        # num_masks = [m[idx] for m in self.masks[0]]
-        # cat_masks = [m[idx] for m in self.masks[1]]
-
-        # Move tensors to device
-        input_num_features = [f for f in input_num_features]
-        input_cat_features = [f for f in input_cat_features]
-        target_num = [f for f in target_num]
-        target_cat = [f for f in target_cat]
-        # num_masks = [m for m in num_masks]
-        # cat_masks = [m for m in cat_masks]
+        if torch.rand(1) < self.cutmix_prob:
+            # Sample mixing ratio from beta distribution
+            lambda_mix = np.random.beta(self.beta, self.beta)
+            
+            # Sample another index for mixing
+            idx2 = torch.randint(self.dataset_length, (1,)).item()
+            
+            # Apply CutMix
+            (input_num_features, input_cat_features), (target_num, target_cat) = \
+                self.apply_cutmix(idx, idx2, lambda_mix)
+        else:
+            # Get regular features without mixing
+            input_num_features = [f[idx] for f in self.input_features[0]]
+            input_cat_features = [f[idx] for f in self.input_features[1]]
+            target_num = [f[idx] for f in self.targets[0]]
+            target_cat = [f[idx] for f in self.targets[1]]
 
         return (input_num_features, input_cat_features), (target_num, target_cat)
 
