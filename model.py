@@ -4,7 +4,8 @@ import numpy as np
 from mambular.base_models import BaseModel
 from torch.utils.data import Dataset, DataLoader
 from torch import nn
-
+from torch.nn import functional as F
+from models.output_head import output_head
 
 
 class Model(BaseModel):
@@ -35,25 +36,16 @@ class Model(BaseModel):
                 param.requires_grad = False
 
         if self.output_dim > 2:
-            self.output_head = nn.Sequential(
-                nn.BatchNorm1d(output_dim),
-                nn.Dropout(dropout),
-                nn.SELU(),
-                nn.Linear(output_dim, hidden_dim),
-                nn.BatchNorm1d(hidden_dim),
-                nn.Dropout(dropout),
-                nn.SELU(),
-                nn.Linear(hidden_dim, 2),
-                nn.Sigmoid()
-            )
+            self.output_head = output_head(output_dim, hidden_dim, dropout, 2)
         else:
-            self.output_head = nn.Sequential(
-                nn.Sigmoid()
-            )
+            self.output_head = None
+
 
     def forward(self, num_features, cat_features):
         x = self.model(num_features, cat_features)
-        x = self.output_head(x)
+        if self.output_head is not None:
+            x = self.output_head(x)
+        x = F.sigmoid(x)
         return x
 
 
@@ -243,6 +235,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                 loss = loss + l2_lambda * l2_reg
 
             # Backward pass and optimize
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
             loss.backward()
             optimizer.step()
 

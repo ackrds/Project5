@@ -1,11 +1,13 @@
 from typing import List, Dict
 import torch
+import numpy as np
 from torch import nn
 import torch.optim as optim
 from torch.utils.data import Dataset
 from mambular.base_models import BaseModel
-from mambular.configs import DefaultMambularConfig
+from mambular.configs import DefaultMambularConfig, DefaultFTTransformerConfig
 import torch.nn.functional as  F
+from models.output_head import output_head
 
 class PretrainingModel(BaseModel):
     def __init__(
@@ -14,23 +16,28 @@ class PretrainingModel(BaseModel):
             num_feature_info,
             model,
             output_dim,
-            config=None,
+            config=DefaultFTTransformerConfig(),
             temperature: float = 0.07,  
             dropout: float = 0.2,      
             hidden_dim: int = 1024,    
             projection_dim: int = 512,  
+            lambda_: float = 0.75,
             **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
 
-        # Base encoder with 64-dimensional output
-        self.output_dim = output_dim
 
-        self.encoder = model(cat_feature_info, num_feature_info, output_dim, config=config)
+        self.model = model(cat_feature_info, num_feature_info, output_dim, config=config)
+
+        self.norm_f = self.model.norm_f
+        self.embedding_layer = self.model.embedding_layer
+        self.encoder = self.model.encoder
+        self.tabular_head = self.model.tabular_head
+
         self.output_dim = output_dim
         self.temperature = temperature
-        self.encoder = model(cat_feature_info, num_feature_info, output_dim, config=kwargs.get('config'))
+        self.lambda_ = lambda_
 
         # Improved projection head with larger capacity and bottleneck
         self.projector = nn.Sequential(
@@ -47,43 +54,41 @@ class PretrainingModel(BaseModel):
         )
         # Define prediction heads
         self.num_heads = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(output_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
-                nn.SELU(),
-                nn.Dropout(dropout),
-                nn.Linear(hidden_dim, hidden_dim // 2),
-                nn.LayerNorm(hidden_dim // 2),
-                nn.SELU(),
-                nn.Dropout(dropout),
-                nn.Linear(hidden_dim // 2, 2)  # Predict both mean and variance
-            ) for _ in num_feature_info
+            output_head(output_dim, hidden_dim, dropout, 2) for _ in num_feature_info
         ])
         
         # Improved categorical prediction heads
+        # Categorical prediction heads for InfoNCE
         self.cat_heads = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(output_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
-                nn.SELU(),
-                nn.Dropout(dropout),
-                nn.Linear(hidden_dim, hidden_dim // 2),
-                nn.LayerNorm(hidden_dim // 2),
-                nn.SELU(),
-                nn.Dropout(dropout),
-                nn.Linear(hidden_dim // 2, 2)  # Predict both mean and variance
-            ) for info in cat_feature_info.values()
-        ])
+            output_head(output_dim, hidden_dim, dropout, info["categories"]) 
+            for info in cat_feature_info.values()
+        ])    
+    
+
+    def manifold_mixup(self, embeddings):
+        shuffled_embeddings = embeddings[torch.randperm(embeddings.size(0))]
+        mixed_embeddings = self.lambda_ * embeddings + (1 - self.lambda_) * shuffled_embeddings
+        
+        return mixed_embeddings
 
     def forward(self, num_features, cat_features):
-
         # Get base encoding
-        encoded = self.encoder(num_features, cat_features)
-        
+        embedding = self.embedding_layer(num_features, cat_features)
+        embedding = self.manifold_mixup(embedding)
+        encoded = self.encoder(embedding)
+
         # Apply stochastic depth during training
-        if self.training:
-            encoded = F.dropout2d(encoded.unsqueeze(-1), p=0.1, training=True).squeeze(-1)
-        
+        # if self.training:
+        #     encoded = F.dropout2d(encoded.unsqueeze(-1), p=0.1, training=True).squeeze(-1)
+
+        # lets keep this manually for now i will figure out later
+        encoded = encoded.mean(dim=1)
+
+        if self.norm_f is not None:
+            encoded = self.norm_f(encoded)
+
+        encoded = self.tabular_head(encoded)
+
         # Project for contrastive learning
         proj = self.projector(encoded)
         
@@ -97,6 +102,73 @@ class PretrainingModel(BaseModel):
             'num_preds': num_preds,
             'cat_logits': cat_logits
         }
+    def compute_numeric_loss(self, num_preds, num_targets):
+        """Compute reconstruction loss for numeric features"""
+        num_recon_loss = 0.0
+        for pred, target in zip(num_preds, num_targets):
+            mean, log_var = pred.chunk(2, dim=-1)
+            var = torch.exp(log_var)
+            num_recon_loss += torch.mean(0.5 * (
+                torch.log(var) + 
+                (target.view(-1, 1) - mean)**2 / var
+            ))
+        return num_recon_loss
+
+    def compute_categorical_loss(self, cat_logits, cat_targets):
+        """Compute InfoNCE loss for categorical features"""
+        cat_loss = 0.0
+        for logits, target in zip(cat_logits, cat_targets):
+            # Get similarities
+            similarities = F.softmax(logits, dim=1)
+            target_idx = target.view(-1, 1).long()
+            
+            # Safety check
+            if target_idx.max() >= logits.size(1):
+                target_idx = torch.clamp(target_idx, 0, logits.size(1) - 1)
+            
+            # InfoNCE computation
+            pos_sim = torch.gather(similarities, 1, target_idx)
+            neg_sim_sum = similarities.sum(dim=1, keepdim=True)
+            info_nce_loss = -torch.log(pos_sim / neg_sim_sum)
+            cat_loss += info_nce_loss.mean()
+        
+        return cat_loss
+
+    def compute_contrastive_loss(self, proj):
+        """Compute global contrastive loss"""
+        sim_matrix = torch.matmul(proj, proj.T) / self.temperature
+        labels = torch.arange(proj.size(0), device=sim_matrix.device)
+        return F.cross_entropy(sim_matrix, labels)
+
+    def compute_total_loss(self, num_features, cat_features, model_outputs):
+        """Compute combined loss with all components"""
+        losses = {}
+        
+        # Individual losses
+        losses['num_loss'] = self.compute_numeric_loss(
+            model_outputs['num_preds'], 
+            num_features
+        )
+        
+        losses['cat_loss'] = self.compute_categorical_loss(
+            model_outputs['cat_logits'], 
+            cat_features
+        )
+        
+        losses['contrastive_loss'] = self.compute_contrastive_loss(
+            model_outputs['proj']
+        )
+        
+        # Combined loss with weights
+        losses['total_loss'] = (
+            0.5 * losses['num_loss'] +
+            0.3 * losses['cat_loss'] +
+            0.2 * losses['contrastive_loss']
+        )
+        
+        return losses
+
+
 
 
 
@@ -104,7 +176,7 @@ class PretrainingDataset(Dataset):
     def __init__(self, num_features: List[torch.Tensor],
                  cat_features: List[torch.Tensor],
                  cat_feature_info: Dict,
-                 mask_ratio: float = 0.15):
+                 mask_ratio: float = 0.45):
         """
         Dataset for self-supervised pretraining with masked feature prediction.
 
@@ -132,7 +204,7 @@ class PretrainingDataset(Dataset):
         self.mask_tokens = [info["categories"] for info in cat_feature_info.values()]
 
         # Pre-generate masks for the entire dataset
-        self.masked_features, self.targets, self.masks = self.generate_masks()
+        self.input_features, self.targets = self.generate_masks()
 
     def __len__(self):
         return self.dataset_length
@@ -144,96 +216,74 @@ class PretrainingDataset(Dataset):
             Tuple of (masked_features, targets, masks)
         """
         # Clone features for masked version
-        masked_num = [f.clone() for f in self.num_features]
-        masked_cat = [f.clone() for f in self.cat_features]
+        input_num_features  = [f.clone() for f in self.num_features]
+        input_cat_features = [f.clone() for f in self.cat_features]
 
         # Create targets
         num_targets = [f.clone() for f in self.num_features]
         cat_targets = [f.clone() for f in self.cat_features]
 
         # Generate masks for all features
-        num_masks = [torch.rand(f.shape) < self.mask_ratio for f in self.num_features]
-        cat_masks = [torch.rand(f.shape) < self.mask_ratio for f in self.cat_features]
+        # augmention_num_masks = [torch.rand(f.shape) < self.mask_ratio for f in self.num_features]
+        # augmention_cat_masks = [torch.rand(f.shape) < self.mask_ratio for f in self.cat_features]
 
         # Apply masking to numerical features
-        for i, num_feat in enumerate(masked_num):
-            mask = num_masks[i]
+        # for i, num_feat in  enumerate(augmented_num_features):
+        #     distortion = augmented_num_masks[i]
 
-            if mask.any():
-                # Get masked positions
-                masked_indices = torch.where(mask)
-                num_masked = len(masked_indices[0])
-                shuffled_indices = torch.randperm(num_masked)
+        #     if distortion.any():
+        #         # Get masked positions
+        #         distortion_indices = torch.where(distortion)
+        #         distortion_masked = len(distortion_indices[0])
+        #         shuffled_indices = torch.randperm(distortion_masked)
 
-                # 50% replace with feature mean
-                # mask_80 = shuffled_indices[:int(0.8* num_masked)]
-                # if len(mask_80) > 0:
-                #     rows_80, cols_80 = masked_indices[0][mask_80], masked_indices[1][mask_80]
-                #     feat_means = num_feat.mean(dim=0)
-                #     masked_xnum[i][rows_80, cols_80] = feat_means[cols_80]
+        #         rows, cols = distortion_indices[0], distortion_indices[1]
+        #         feat_stds = num_feat.std(dim=0)
+        #         feat_means = num_feat.mean(dim=0)
+        #         random_values = torch.randn(len(rows)) * feat_stds[cols] + feat_means[cols]
+        #         augmented_num_features[i][rows, cols] = random_values
 
-                # 10% replace with random values
-                # mask_10 = shuffled_indices[int(0.8*num_masked):int(0.9 * num_masked)]
-                # if len(mask_10) > 0:
-                rows, cols = masked_indices[0], masked_indices[1]
-                feat_stds = num_feat.std(dim=0)
-                feat_means = num_feat.mean(dim=0)
-                random_values = torch.randn(len(rows)) * feat_stds[cols] + feat_means[cols]
-                masked_num[i][rows, cols] = random_values
+        #         # 10% keep unchanged (already done by cloning)
 
-                # 10% keep unchanged (already done by cloning)
+        # # Apply masking to categorical features
+        # for i, (cat_feat, num_categories) in enumerate(zip(augmented_cat_features, self.mask_tokens)):
+        #     distortion = augmented_cat_masks[i]
 
-        # Apply masking to categorical features
-        for i, (cat_feat, num_categories) in enumerate(zip(masked_cat, self.mask_tokens)):
-            mask = cat_masks[i]
+        #     if distortion.any():
+        #         distortion_indices = torch.where(distortion)
+        #         distortion_masked = len(distortion_indices[0])
+        #         shuffled_indices = torch.randperm(distortion_masked)
 
-            if mask.any():
-                masked_indices = torch.where(mask)
-                num_masked = len(masked_indices[0])
-                shuffled_indices = torch.randperm(num_masked)
+        #         rows = distortion_indices[0]
+        #         augmented_cat_features[i][rows] = torch.randint(0, num_categories, (len(rows),)).to(augmented_cat_features[i].dtype)
 
-                # 80% replace with mask token (0)
-                # mask_80 = shuffled_indices[:int(0.8 * num_masked)]
-                # if len(mask_80) > 0:
-                rows = masked_indices[0]
-                masked_cat[i][rows] = -1
-
-                # 10% replace with random categories
-                # mask_10 = shuffled_indices[int(0.8 * num_masked):int(0.9 * num_masked)]
-                # if len(mask_10) > 0:
-                #     rows_10 = masked_indices[0][mask_10]
-                #     random_cats = torch.randint(1, num_categories, (len(mask_10),))
-                #     masked_cat[i][rows_10] = random_cats
-
-                # 10% keep unchanged (already done by cloning)
-
-        return (masked_num, masked_cat), (num_targets, cat_targets), (num_masks, cat_masks)
+        return (input_num_features,  input_cat_features), (num_targets, cat_targets)
 
     def __getitem__(self, idx):
         """
         Get a batch of masked and target features.
         """
         # Get masked features
-        masked_num = [f[idx] for f in self.masked_features[0]]
-        masked_cat = [f[idx] for f in self.masked_features[1]]
+        input_num_features = [f[idx] for f in self.input_features[0]]
+        input_cat_features = [f[idx] for f in self.input_features[1]]
 
         # Get targets
         target_num = [f[idx] for f in self.targets[0]]
         target_cat = [f[idx] for f in self.targets[1]]
 
         # Get masks
-        num_masks = [m[idx] for m in self.masks[0]]
-        cat_masks = [m[idx] for m in self.masks[1]]
+        # num_masks = [m[idx] for m in self.masks[0]]
+        # cat_masks = [m[idx] for m in self.masks[1]]
 
         # Move tensors to device
-        masked_num = [f for f in masked_num]
-        masked_cat = [f for f in masked_cat]
+        input_num_features = [f for f in input_num_features]
+        input_cat_features = [f for f in input_cat_features]
         target_num = [f for f in target_num]
         target_cat = [f for f in target_cat]
-        num_masks = [m for m in num_masks]
-        cat_masks = [m for m in cat_masks]
+        # num_masks = [m for m in num_masks]
+        # cat_masks = [m for m in cat_masks]
 
-        return (masked_num, masked_cat), (target_num, target_cat), (num_masks, cat_masks)
+        return (input_num_features, input_cat_features), (target_num, target_cat)
 
 
 
@@ -241,8 +291,8 @@ def pretrain_model(model, train_loader, val_loader, num_epochs, device, lr=0.001
     """Pretrain the model using masked feature prediction."""
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    num_criterion = nn.MSELoss(reduction='none')
-    cat_criterion = nn.CrossEntropyLoss(reduction='none')
+    # num_criterion = nn.MSELoss(reduction='none')
+    # cat_criterion = nn.CrossEntropyLoss(reduction='none')
 
     print("\nStarting Pretraining:")
     for epoch in range(num_epochs):
@@ -250,57 +300,34 @@ def pretrain_model(model, train_loader, val_loader, num_epochs, device, lr=0.001
         total_loss = 0
         num_batches = 0
 
-        for batch_idx, (masked_features, targets, masks) in enumerate(train_loader):
-            masked_num, masked_cat = masked_features
-            num_targets, cat_targets = targets
-            num_masks, cat_masks = masks
+        for batch_idx, (input_features, targets) in enumerate(train_loader):
+            input_num_features, input_cat_features = input_features
+            num_features, cat_features = targets
+            # num_masks, cat_masks = masks
 
             # Move to device
-            masked_num = [f.to(device) for f in masked_num]
-            masked_cat = [f.to(device) for f in masked_cat]
-            num_targets = [t.to(device) for t in num_targets]
-            cat_targets = [t.to(device) for t in cat_targets]
-            num_masks = [m.to(device) for m in num_masks]
-            cat_masks = [m.to(device) for m in cat_masks]
+            input_num_features = [f.to(device) for f in input_num_features]
+            input_cat_features = [f.to(device) for f in input_cat_features]
+            num_features = [t.to(device) for t in num_features]
+            cat_features = [t.to(device) for t in cat_features]
+            # num_masks = [m.to(device) for m in num_masks]
+            # cat_masks = [m.to(device) for m in cat_masks]
 
             optimizer.zero_grad()
 
             # Forward pass
-            outputs = model(masked_num, masked_cat)
-            num_preds = outputs['num_preds']
-            cat_logits = outputs['cat_logits']
-            proj = outputs['proj']
+            outputs = model(input_num_features, input_cat_features)
+            # num_preds = outputs['num_preds']
+            # cat_logits = outputs['cat_logits']
+            # proj = outputs['proj']
 
-            # Calculate losses
-            loss = 0
-
-            # Numerical feature losses
-            for pred, target, mask in zip(num_preds, num_targets, num_masks):
-                if mask.any():
-                    num_loss = num_criterion(pred, target)
-                    loss += (num_loss * mask.float()).mean()
-
-            # Categorical feature losses
-            for logits, target, mask in zip(cat_logits, cat_targets, cat_masks):
-                if mask.any():
-                    cat_loss = cat_criterion(
-                        logits.view(-1, logits.size(-1)),
-                        target.long().view(-1)
-                    )
-                    loss += (cat_loss * mask.view(-1).float()).mean()
-
-            # Contrastive loss
-            sim_matrix = torch.matmul(proj, proj.T) / model.temperature
-            labels = torch.arange(proj.size(0), device=sim_matrix.device)
-            contrastive_loss = F.cross_entropy(sim_matrix, labels)
-            loss += contrastive_loss
-
+            loss = model.compute_total_loss(num_features, cat_features, outputs)
+            loss = loss['total_loss']
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
             num_batches += 1
-
             # if batch_idx % 10 == 0:
             #     print(
             #         f"Epoch [{epoch + 1}/{num_epochs}], Batch [{batch_idx}/{len(train_loader)}], Loss: {loss.item():.4f}")
@@ -315,39 +342,24 @@ def pretrain_model(model, train_loader, val_loader, num_epochs, device, lr=0.001
         
         if epoch % 5 == 0:
             with torch.no_grad():
-                for batch_idx, (masked_features, targets, masks) in enumerate(val_loader):
-                    masked_num, masked_cat = masked_features
-                    num_targets, cat_targets = targets
-                    num_masks, cat_masks = masks
+                for batch_idx, (input_features, targets) in enumerate(val_loader):
+                    input_num_features, input_cat_features = input_features
+                    num_features, cat_features = targets
+                    # num_masks, cat_masks = masks
 
                     # Move to device
-                    masked_num = [f.to(device) for f in masked_num]
-                    masked_cat = [f.to(device) for f in masked_cat]
-                    num_targets = [t.to(device) for t in num_targets]
-                    cat_targets = [t.to(device) for t in cat_targets]
-                    num_masks = [m.to(device) for m in num_masks]
-                    cat_masks = [m.to(device) for m in cat_masks]
+                    input_num_features = [f.to(device) for f in input_num_features]
+                    input_cat_features = [f.to(device) for f in input_cat_features]
+                    num_features = [t.to(device) for t in num_features]
+                    cat_features = [t.to(device) for t in cat_features]
+                    # num_masks = [m.to(device) for m in num_masks]
+                    # cat_masks = [m.to(device) for m in cat_masks]
 
                     # Forward pass
-                    num_preds, cat_logits = model(masked_num, masked_cat)
+                    outputs = model(input_num_features, input_cat_features)
 
-                    # Calculate validation losses
-                    val_loss_batch = 0
-
-                    # Numerical feature losses
-                    for pred, target, mask in zip(num_preds, num_targets, num_masks):
-                        if mask.any():
-                            num_loss = num_criterion(pred, target)
-                            val_loss_batch += (num_loss * mask.float()).mean()
-
-                    # Categorical feature losses
-                    for logits, target, mask in zip(cat_logits, cat_targets, cat_masks):
-                        if mask.any():
-                            cat_loss = cat_criterion(
-                                logits.view(-1, logits.size(-1)),
-                                target.long().view(-1)
-                            )
-                            val_loss_batch += (cat_loss * mask.view(-1).float()).mean()
+                    val_loss_batch = model.compute_total_loss(num_features, cat_features, outputs)
+                    val_loss_batch = val_loss_batch['total_loss']
 
                     val_loss += val_loss_batch.item()
                     val_batches += 1

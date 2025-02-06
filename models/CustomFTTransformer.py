@@ -113,7 +113,7 @@ class DenseTransformerEncoderLayer(CustomTransformerEncoderLayer):
         return src
     
     
-class FTTransformer(BaseModel):
+class DenseFTTransformer(BaseModel):
     def __init__(
         self,
         cat_feature_info,
